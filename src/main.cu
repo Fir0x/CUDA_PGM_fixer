@@ -95,11 +95,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // TODO : Test here that you have the same results
     // You can compare visually and should compare image vectors values and "total" values
     // If you did the sorting, check that the ids are in the same order
+    std::filesystem::create_directory("fixed_images");
     for (int i = 0; i < nb_images; ++i)
     {
         std::cout << "Image #" << images[i].to_sort.id << " total : " << images[i].to_sort.total << std::endl;
         std::ostringstream oss;
-        oss << "Image#" << images[i].to_sort.id << ".pgm";
+        oss << "fixed_images/Image#" << images[i].to_sort.id << ".pgm";
         std::string str = oss.str();
         images[i].write(str);
     }
