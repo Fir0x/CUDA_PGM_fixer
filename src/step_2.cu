@@ -9,10 +9,10 @@ namespace Core
 
     struct mapping
     {
-        __host__ __device__ int operator()(const thrust::tuple<intiter, countiter>& tuple)
+        __host__ __device__ int operator()(const thrust::tuple<int, int>& tuple)
         {
-            int x = *tuple.get<0>();
-            int i = *tuple.get<1>();
+            int x = tuple.get<0>();
+            int i = tuple.get<1>();
 
             if (i % 4 == 0)
                 return x + 1;
@@ -35,7 +35,7 @@ namespace Core
         thrust::counting_iterator<int> idxlast = idxfirst + to_fix.size();
         auto first = thrust::make_zip_iterator(thrust::make_tuple(to_fix.begin(), idxfirst));
         auto last = thrust::make_zip_iterator(thrust::make_tuple(to_fix.end(), idxlast));
-        thrust::transform(first, last, to_fix.begin(), to_fix.end(), mapping());
+        thrust::transform(first, last, to_fix.begin(), mapping());
     }
 } // namespace Core
 
