@@ -41,7 +41,7 @@ void fix_image_cpu(Image& to_fix)
     // #2 Apply map to fix pixels
 
     std::cout << "Accumulate before: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
-    for (int i = 0; i < image_size - 2500; ++i)
+    for (int i = 0; i < image_size; ++i)
     {
         if (i % 4 == 0)
             to_fix.buffer[i] += 1;

@@ -39,7 +39,7 @@ namespace Core
         auto first = thrust::make_zip_iterator(thrust::make_tuple(to_fix.begin(), idxfirst));
         auto last = thrust::make_zip_iterator(thrust::make_tuple(to_fix.end(), idxlast));
 
-        thrust::transform(first, last - 54000, to_fix.begin(), mapping_functor());
+        thrust::transform(first, last, to_fix.begin(), mapping_functor());
 
         std::cout << "Accumulate after: " << thrust::reduce(to_fix.begin(), to_fix.end(), 0) << std::endl;
     }
