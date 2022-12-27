@@ -26,15 +26,22 @@ void fix_image_cpu(Image& to_fix)
     std::exclusive_scan(predicate.begin(), predicate.end(), predicate.begin(), 0);
 
     // Scatter to the corresponding addresses
+    auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
+    std::cout << "Size before: " << to_fix.buffer.size() << std::endl;
+    std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
     for (std::size_t i = 0; i < predicate.size(); ++i)
         if (to_fix.buffer[i] != garbage_val)
             to_fix.buffer[predicate[i]] = to_fix.buffer[i];
 
+    it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
+    std::cout << "Size after: " << to_fix.buffer.size() << std::endl;
+    std::cout << "It info after: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
     // #2 Apply map to fix pixels
 
-    for (int i = 0; i < image_size; ++i)
+    std::cout << "Accumulate before: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
+    for (int i = 0; i < image_size - 2500; ++i)
     {
         if (i % 4 == 0)
             to_fix.buffer[i] += 1;
@@ -45,6 +52,7 @@ void fix_image_cpu(Image& to_fix)
         else if (i % 4 == 3)
             to_fix.buffer[i] -= 8;
     }
+    std::cout << "Accumulate after: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
 
     // #3 Histogram equalization
 

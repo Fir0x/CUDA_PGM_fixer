@@ -16,7 +16,7 @@ namespace Core
     };
 
     // Compact
-    void step_1(thrust::device_vector<int> to_fix)
+    void step_1(thrust::device_vector<int>& to_fix)
     {
         std::cout << "Step 1 ref" << std::endl;
 
@@ -30,7 +30,17 @@ namespace Core
         // 3 Scatter to the corresponding addresses
         // TODO
         // thrust::scatter
+
+        auto it = thrust::find(to_fix.begin(), to_fix.end(), -27);
+
+        std::cout << "Size before: " << to_fix.size() << std::endl;
+        std::cout << "It info before: S " << it - to_fix.begin() << " E " << to_fix.end() - it << std::endl;
+
         thrust::copy_if(to_fix.begin(), to_fix.end(), to_fix.begin(), generate_mask());
+
+        it = thrust::find(to_fix.begin(), to_fix.end(), -27);
+        std::cout << "Size before: " << to_fix.size() << std::endl;
+        std::cout << "It info before: S " << it - to_fix.begin() << " E " << to_fix.end() - it << std::endl;
     }
 
 } // namespace Core
