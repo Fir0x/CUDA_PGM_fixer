@@ -25,4 +25,5 @@ namespace CustomCore
     void step_1(int* to_fix, ImageInfo imageInfo);
     void step_2(int* to_fix, ImageInfo imageInfo);
     void step_3(int* to_fix, ImageInfo imageInfo);
+    void scan(int *buffer, int size);
 } // namespace CustomCore
