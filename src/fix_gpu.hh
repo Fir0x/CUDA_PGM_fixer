@@ -3,6 +3,8 @@
 #include "image.hh"
 #include <thrust/device_vector.h>
 
+#define NB_THREADS 256
+
 void fix_image_gpu(Image& to_fix);
 void fix_image_gpu_custom(Image& to_fix);
 
@@ -25,5 +27,5 @@ namespace CustomCore
     void step_1(int* to_fix, ImageInfo imageInfo);
     void step_2(int* to_fix, ImageInfo imageInfo);
     void step_3(int* to_fix, ImageInfo imageInfo);
-    void scan(int *buffer, int size);
+    void scan(int *buffer, int size, bool inclusive = false);
 } // namespace CustomCore

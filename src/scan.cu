@@ -1,7 +1,5 @@
 #include "fix_gpu.hh"
 
-#define NB_THREADS 256
-
 namespace CustomCore
 {
     // TODO Use best reduce possible
