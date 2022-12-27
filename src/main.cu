@@ -52,7 +52,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         images[i] = pipeline.get_image(i);
 #ifdef REF_GPU_FIX
         fix_image_gpu(images[i]);
-#elif defined(GPU_FIX)
+#elif defined GPU_FIX
         fix_image_gpu_custom(images[i]);
 #else
         fix_image_cpu(images[i]);

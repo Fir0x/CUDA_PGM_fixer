@@ -22,7 +22,7 @@ namespace CustomCore
         size_t device_pitch;
     };
 
-    void step_1([[maybe_unused]] int* to_fix, [[maybe_unused]] ImageInfo imageInfo);
-    void step_2([[maybe_unused]] int* to_fix, [[maybe_unused]] ImageInfo imageInfo);
-    void step_3([[maybe_unused]] int* to_fix, [[maybe_unused]] ImageInfo imageInfo);
+    void step_1(int* to_fix, ImageInfo imageInfo);
+    void step_2(int* to_fix, ImageInfo imageInfo);
+    void step_3(int* to_fix, ImageInfo imageInfo);
 } // namespace CustomCore
