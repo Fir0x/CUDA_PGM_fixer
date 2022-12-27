@@ -27,21 +27,15 @@ namespace Core
     };
 
     // Apply map to fix pixels
-    void step_2(thrust::device_vector<int>& to_fix)
+    void step_2(thrust::device_vector<int>& to_fix, size_t image_size)
     {
-        std::cout << "Step 2 ref" << std::endl;
-
-        std::cout << "Accumulate before: " << thrust::reduce(to_fix.begin(), to_fix.end(), 0) << std::endl;
-
         thrust::counting_iterator<int> idxfirst(0);
-        thrust::counting_iterator<int> idxlast = idxfirst + to_fix.size();
+        thrust::counting_iterator<int> idxlast = idxfirst + image_size;
 
         auto first = thrust::make_zip_iterator(thrust::make_tuple(to_fix.begin(), idxfirst));
-        auto last = thrust::make_zip_iterator(thrust::make_tuple(to_fix.end(), idxlast));
+        auto last = thrust::make_zip_iterator(thrust::make_tuple(to_fix.begin() + image_size, idxlast));
 
         thrust::transform(first, last, to_fix.begin(), mapping_functor());
-
-        std::cout << "Accumulate after: " << thrust::reduce(to_fix.begin(), to_fix.end(), 0) << std::endl;
     }
 } // namespace Core
 

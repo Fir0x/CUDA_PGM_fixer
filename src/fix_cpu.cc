@@ -27,6 +27,7 @@ void fix_image_cpu(Image& to_fix)
 
     // Scatter to the corresponding addresses
     auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
+    std::cout << image_size << std::endl;
     std::cout << "Size before: " << to_fix.buffer.size() << std::endl;
     std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
@@ -63,6 +64,8 @@ void fix_image_cpu(Image& to_fix)
     for (int i = 0; i < image_size; ++i)
         ++histo[to_fix.buffer[i]];
 
+    std::cout << "Histogram accumulation: " << std::accumulate(histo.begin(), histo.end(), 0) << std::endl;
+
     // Compute the inclusive sum scan of the histogram
 
     std::inclusive_scan(histo.begin(), histo.end(), histo.begin());
@@ -72,6 +75,7 @@ void fix_image_cpu(Image& to_fix)
     auto first_none_zero = std::find_if(histo.begin(), histo.end(), [](auto v) { return v != 0; });
 
     const int cdf_min = *first_none_zero;
+    std::cout << "First cdf_min: " << cdf_min << std::endl;
 
     // Apply the map transformation of the histogram equalization
 
@@ -81,4 +85,6 @@ void fix_image_cpu(Image& to_fix)
                 return std::roundf(((histo[pixel] - cdf_min) / static_cast<float>(image_size - cdf_min)) * 255.0f);
             }
     );
+
+    std::cout << "Last accumulation: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
 }

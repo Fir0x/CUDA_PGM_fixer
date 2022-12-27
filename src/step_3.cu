@@ -18,11 +18,11 @@ namespace Core
 
     struct apply_functor
     {
-        thrust::device_vector<int>& histogram;
+        thrust::device_ptr<int> histogram;
         const int cdf_min;
         const size_t image_size;
 
-        apply_functor(thrust::device_vector<int>& _histogram, int _cdf_min, size_t _image_size)
+        apply_functor(thrust::device_ptr<int> _histogram, int _cdf_min, size_t _image_size)
             : histogram(_histogram), cdf_min(_cdf_min), image_size(_image_size)
         {
         }
@@ -30,17 +30,16 @@ namespace Core
         __device__ __host__
         float operator()(const int pixel)
         {
-            return pixel + 1;//roundf(((histogram[pixel] - cdf_min) / static_cast<float>(image_size - cdf_min)) * 255.0f);
+            return roundf(((histogram[pixel] - cdf_min) / static_cast<float>(image_size - cdf_min)) * 255.0f);
         }
     };
 
     // Histogram equalization
-    void step_3([[maybe_unused]] thrust::device_vector<int>& to_fix)
+    void step_3(thrust::device_vector<int>& to_fix, size_t image_size)
     {
-        std::cout << "Step 3 ref" << std::endl;
         // 1. Histogram
         thrust::device_vector<int> histogram(256, 0);
-        thrust::device_vector<int> to_fix_tmp(to_fix);
+        thrust::device_vector<int> to_fix_tmp(to_fix.begin(), to_fix.begin() + image_size);
         thrust::sort(to_fix_tmp.begin(), to_fix_tmp.end());
 
         thrust::counting_iterator<int> search_begin(0);
@@ -59,10 +58,9 @@ namespace Core
         const int cdf_min = *first_none_zero;
 
         // 4. Apply the map transformation of the histogram equalization
-        size_t image_size = to_fix.size();
-        apply_functor apply_instance(histogram, cdf_min, image_size);
+        apply_functor apply_instance(histogram.data(), cdf_min, image_size);
 
-        thrust::transform(to_fix.begin(), to_fix.end(), to_fix.begin(), apply_instance);
+        thrust::transform(to_fix.begin(), to_fix.begin() + image_size, to_fix.begin(), apply_instance);
     }
 } // namespace Core
 
