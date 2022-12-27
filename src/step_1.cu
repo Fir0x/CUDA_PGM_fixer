@@ -32,7 +32,6 @@ namespace Core
         // thrust::scatter
 
         auto it = thrust::find(to_fix.begin(), to_fix.end(), -27);
-
         std::cout << "Size before: " << to_fix.size() << std::endl;
         std::cout << "It info before: S " << it - to_fix.begin() << " E " << to_fix.end() - it << std::endl;
 

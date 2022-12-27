@@ -9,8 +9,8 @@ void fix_image_gpu_custom(Image& to_fix);
 namespace Core
 {
     void step_1(thrust::device_vector<int>& to_fix);
-    void step_2(thrust::device_vector<int>& to_fix);
-    void step_3(thrust::device_vector<int>& to_fix);
+    void step_2(thrust::device_vector<int>& to_fix, size_t image_size);
+    void step_3(thrust::device_vector<int>& to_fix, size_t image_size);
 } // namespace Core
 
 namespace CustomCore

@@ -27,6 +27,7 @@ void fix_image_cpu(Image& to_fix)
 
     // Scatter to the corresponding addresses
     auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
+    std::cout << image_size << std::endl;
     std::cout << "Size before: " << to_fix.buffer.size() << std::endl;
     std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
@@ -81,4 +82,6 @@ void fix_image_cpu(Image& to_fix)
                 return std::roundf(((histo[pixel] - cdf_min) / static_cast<float>(image_size - cdf_min)) * 255.0f);
             }
     );
+
+    std::cout << "Last accumulation: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
 }

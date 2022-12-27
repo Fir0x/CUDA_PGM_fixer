@@ -6,10 +6,11 @@ void fix_image_gpu(Image& to_fix)
 {
     // Send image to GPU 
     thrust::device_vector<int> d_fix (to_fix.buffer);
+    const size_t image_size = to_fix.width * to_fix.height;
     
     Core::step_1(d_fix);
-    Core::step_2(d_fix);
-    Core::step_3(d_fix);
+    Core::step_2(d_fix, image_size);
+    Core::step_3(d_fix, image_size);
 
     // Get data back to CPU
     thrust::copy(to_fix.buffer.begin(), to_fix.buffer.end(), d_fix.begin());
