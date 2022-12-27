@@ -13,7 +13,7 @@ void fix_image_gpu(Image& to_fix)
     Core::step_3(d_fix, image_size);
 
     // Get data back to CPU
-    thrust::copy(to_fix.buffer.begin(), to_fix.buffer.end(), d_fix.begin());
+    thrust::copy(d_fix.begin(), d_fix.end(), to_fix.buffer.begin());
 }
 
 void fix_image_gpu_custom(Image& to_fix)
