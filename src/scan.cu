@@ -57,7 +57,7 @@ namespace CustomCore
     }
 
     // Do the decoupled loop back and add the sum on the buffer_shared[0]
-    int decoupled_loop_back(int *buffer_shared, int *shared_state, int *blocks_sum, int block_manual_id)
+    __device__ int decoupled_loop_back(int *buffer_shared, int *shared_state, int *blocks_sum, int block_manual_id)
     {
         int total_added = 0;
         int block_look_at = block_manual_id - 1;
@@ -92,20 +92,19 @@ namespace CustomCore
     __global__ void scan_kernel_1(
         T *buffer, int size, int *shared_state, int *blocks_sum, int *block_order, bool inclusive)
     {
-        if (threadIdx.x < size)
+        __shared__ int block_manual_id;
+        __shared__ int buffer_shared[NB_THREADS];
+
+        // Block ordering
+        if (threadIdx.x == 0)
+            block_manual_id = atomicAdd(&block_order[0], 1);
+        __threadfence_system();
+        __syncthreads();
+
+        int global_index = blockDim.x * block_manual_id + threadIdx.x;
+        if (global_index < size)
         {
-            __shared__ int block_manual_id;
-            __shared__ int buffer_shared[NB_THREADS];
-
-            // Block ordering
-            if (threadIdx.x == 0)
-                block_manual_id = atomicAdd(&block_order[0], 1);
-
-            __threadfence_system();
-            __syncthreads();
-
             int local_index = threadIdx.x;
-            int global_index = blockDim.x * block_manual_id + threadIdx.x;
             buffer_shared[local_index] = buffer[global_index];
             __syncthreads();
 
@@ -167,7 +166,8 @@ namespace CustomCore
                                   int *shared_state,
                                   int *blocks_sum_a,
                                   int *blocks_sum_p,
-                                  int *block_order)
+                                  int *block_order,
+                                  bool inclusive)
     {
         if (threadIdx.x < size)
         {
@@ -188,7 +188,7 @@ namespace CustomCore
             __syncthreads();
 
             // 1. Reduce in the block
-            reduce(buffer_shared, blocks_sum_a, block_manual_id);
+            reduce_use_atomic(buffer_shared, blocks_sum_a, block_manual_id);
             __syncthreads();
 
             if (threadIdx.x == 0)
@@ -198,7 +198,7 @@ namespace CustomCore
             // --- 2. decoupled loop back to get sum of other blocks
             int total_added = 0;
             if (threadIdx.x == 0)
-                total_added = decoupled_loop_back(buffer_shared, shared_state, blocks_sum, block_manual_id);
+                total_added = decoupled_loop_back(buffer_shared, shared_state, blocks_sum_a, block_manual_id);
 
             if (threadIdx.x == 0)
                 atomicExch(&blocks_sum_p[block_manual_id], total_added + blocks_sum_a[block_manual_id]);
@@ -224,7 +224,7 @@ namespace CustomCore
         }
     }
 
-    void scan(int *buffer, int size, bool inclusive = false)
+    void scan(int *buffer, int size, bool inclusive)
     {
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         int *shared_state;

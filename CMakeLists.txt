@@ -32,6 +32,8 @@ set(GPU_FILES
     src/step_1.cu
     src/step_2.cu
     src/step_3.cu
+    src/scan.cu
+    src/utils.cu
 )
 
 add_executable(ref_gpu_fix ${GPU_FILES})

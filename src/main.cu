@@ -32,13 +32,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     // -- Main loop containing image retring from pipeline and fixing
 
-    const int nb_images = pipeline.images.size();
+    int nb_images = pipeline.images.size();
     std::vector<Image> images(nb_images);
 
     // - One CPU thread is launched for each image
 
     std::cout << "Done, starting compute" << std::endl;
 
+    nb_images = 1;
     #pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {

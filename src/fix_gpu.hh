@@ -3,8 +3,6 @@
 #include "image.hh"
 #include <thrust/device_vector.h>
 
-#define NB_THREADS 256
-
 void fix_image_gpu(Image& to_fix);
 void fix_image_gpu_custom(Image& to_fix);
 
@@ -17,15 +15,20 @@ namespace Core
 
 namespace CustomCore
 {
+    #define NB_THREADS 256
+
     struct ImageInfo
     {
         int width;
         int height;
         size_t device_pitch;
+        size_t corrupted_size;
     };
 
     void step_1(int* to_fix, ImageInfo imageInfo);
     void step_2(int* to_fix, ImageInfo imageInfo);
     void step_3(int* to_fix, ImageInfo imageInfo);
     void scan(int *buffer, int size, bool inclusive = false);
+    void cudaMalloc_custom(int** ptr, size_t size);
+    void checkKernelError(std::string name);
 } // namespace CustomCore
