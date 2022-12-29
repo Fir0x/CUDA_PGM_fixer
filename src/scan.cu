@@ -32,28 +32,39 @@ namespace CustomCore
         }
     }
 
-    __device__ void kogge_stone_scan_exclusive(int *buffer_shared, int local_index)
+    __device__ void kogge_stone_scan_exclusive(int *buffer_shared, int local_index, int total_added)
     {
         int plus = 1;
-        int previous = 0;
-        int act;
+        int val;
+
+        // Todo find a way to remove this temp buffer
+        __shared__ int buffer_exclu[NB_THREADS];
+        buffer_exclu[threadIdx.x] = buffer_shared[threadIdx.x];
+        __syncthreads();
+
         for (plus = 1; plus <= blockDim.x / 2; plus *= 2)
         {
             if (local_index + plus < blockDim.x)
             {
-                if (local_index + plus != blockDim.x - 1)
-                    buffer_shared[local_index + plus] = previous;
-                else
-                    buffer_shared[local_index + plus] = previous;
+                val = buffer_shared[local_index];
             }
             __syncthreads();
             if (local_index + plus < blockDim.x)
             {
-                act = buffer_shared[local_index];
-                previous = act;
+                if (local_index + plus != blockDim.x - 1)
+                    buffer_shared[local_index + plus] += val;
+                else
+                    buffer_shared[local_index + plus] += val;
             }
             __syncthreads();
         }
+        
+        // TODO find a way to avoid this
+        if (threadIdx.x == 0)
+            buffer_shared[local_index] -= (buffer_exclu[local_index] - total_added);
+        else
+            buffer_shared[local_index] -= buffer_exclu[local_index];
+        __syncthreads();
     }
 
     // Do the decoupled loop back and add the sum on the buffer_shared[0]
@@ -148,7 +159,7 @@ namespace CustomCore
             if (inclusive)
                 kogge_stone_scan_inclusive(buffer_shared, local_index);
             else
-                kogge_stone_scan_exclusive(buffer_shared, local_index);
+                kogge_stone_scan_exclusive(buffer_shared, local_index, total_added);
 
             __syncthreads();
             buffer[global_index] = buffer_shared[local_index];
@@ -216,7 +227,7 @@ namespace CustomCore
             if (inclusive)
                 kogge_stone_scan_inclusive(buffer_shared, local_index);
             else
-                kogge_stone_scan_exclusive(buffer_shared, local_index);
+                kogge_stone_scan_exclusive(buffer_shared, local_index, total_added);
 
             __syncthreads();
             buffer[global_index] = buffer_shared[local_index];

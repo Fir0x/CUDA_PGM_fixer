@@ -70,48 +70,49 @@ namespace CustomCore
         if (id < size)
         {
             int index_histo = to_fix[id];
-            if (index_histo < 0 || index_histo >= 256) 
-                index_histo = 0;
-                //std::cout << "Error index " << index_histo << std::endl;
-            else 
-                histo[index_histo] += 1;
+            // TODO Easy to improve
+            atomicAdd(histo + index_histo, 1);
         }
     }
 
     __global__ void find_first_non_zero(int *histo, int work_per_thread, int *find_first_non_zero)
     {
         __shared__ int min_non_zeros[16];
+        
         int start_id = threadIdx.x * work_per_thread;
+        int min = histo[start_id]; 
 
         // Will iterate on a part of the array
         // Separe te work on x thread group
-        for (int i = start_id; i < start_id + work_per_thread; i++)
+        for (int i = start_id + 1; i < start_id + work_per_thread; i++)
         {
-            if (histo[i] != 0)
+            int val = histo[i];
+            if (min == 0 || (val != 0 && val < min))
             {
-                min_non_zeros[threadIdx.x] = i;
-                break;
+                min = val;
             }
         }
+        min_non_zeros[threadIdx.x] = min;
 
         __syncthreads();
-
+        
+        min = 0;
         // A thread alone is here to get the final result
         if (threadIdx.x == 0)
         {
             for (int i = 0; i < NB_THREADS / work_per_thread; i++)
             {
-                int real_min = min_non_zeros[i];
-                if (real_min != -1)
+                int val = min_non_zeros[i];
+                if (min == 0 || (val != 0 && val < min))
                 {
-                    *find_first_non_zero = real_min;
-                    break;
+                    min = val;
                 }
             }
+            *find_first_non_zero = min;
         }
     }
 
-    __global__ void histo_equalization(int* to_fix, int* histo, int* first_non_zero, int size) 
+    __global__ void histo_equalization(int *to_fix, int *histo, int *first_non_zero, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         if (id < size)
@@ -123,7 +124,7 @@ namespace CustomCore
     }
     void step_3([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
     {
-        std::cout << "Step 3 custom" << std::endl;
+        std::cout << "=== Start step 3 custom" << std::endl;
         int size = imageInfo.height * imageInfo.width;
         int nbBlocks = std::ceil((float)size / NB_THREADS);
 
@@ -134,11 +135,14 @@ namespace CustomCore
         build_histogram<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, size);
         checkKernelError("build_histogram");
         cudaDeviceSynchronize();
-        std::cout << "End histogram" << std::endl;
-        
+
+        { // debug
+            thrust::device_ptr<int> tmp_histogram = thrust::device_pointer_cast(histogram);
+            std::cout << "Histogram accumulation: " << thrust::reduce(tmp_histogram, tmp_histogram + 256, 0) << std::endl;
+        }
+
         // 2. Compute the inclusive sum scan of the histogram
-        scan(to_fix, size, true);
-        std::cout << "End scan" << std::endl;
+        scan(histogram, 256, true);
 
         // 3. Find the first non-zero value in the cumulative histogram
         int *first_non_zero;
@@ -147,15 +151,23 @@ namespace CustomCore
         find_first_non_zero<<<1, 16>>>(histogram, work_per_thread, first_non_zero);
         checkKernelError("find_first_non_zero");
         cudaDeviceSynchronize();
-        //std::cout << "First cdf_min: " << *first_non_zero << std::endl;
+
+        { // debug
+            thrust::device_ptr<int> tmp_first = thrust::device_pointer_cast(first_non_zero);
+            std::cout << "First cdf_min: " << *tmp_first << std::endl;
+        }
 
         // 4. Apply the map transformation of the histogram equalization
         histo_equalization<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
         checkKernelError("histo_equalization");
-        std::cout << "End histo equalization" << std::endl;
         cudaDeviceSynchronize();
 
+        { // debug
+            thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
+            std::cout << "Last accumulation: " << thrust::reduce(tmp_fix, tmp_fix + size, 0) << std::endl;
+        }
+
         cudaFree(histogram);
-        //cudaFree(first_non_zero);
+        cudaFree(first_non_zero);
     }
 } // namespace CustomCore

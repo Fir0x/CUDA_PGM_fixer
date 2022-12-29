@@ -23,9 +23,21 @@ void fix_image_cpu(Image& to_fix)
 
     // Compute the exclusive sum of the predicate
 
+    for (int i = 0; i < 20; i ++) {
+        std::cout << predicate[i] << " ; ";
+    }
+    std::cout << std::endl;
     std::exclusive_scan(predicate.begin(), predicate.end(), predicate.begin(), 0);
-
+    
+    for (int i = 0; i < 20; i ++) {
+        std::cout << predicate[i] << " ; ";
+    }
+    std::cout << std::endl;
     // Scatter to the corresponding addresses
+    for (int i = 0; i < 20; i ++) {
+        std::cout << to_fix.buffer[i] << " ; ";
+    }
+    std::cout << std::endl;
     auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
     std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
@@ -37,7 +49,10 @@ void fix_image_cpu(Image& to_fix)
     std::cout << "It info after: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
     // #2 Apply map to fix pixels
-
+    for (int i = 0; i < 20; i ++) {
+        std::cout << to_fix.buffer[i] << " ; ";
+    }
+    std::cout << std::endl;
     std::cout << "Accumulate before: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
     for (int i = 0; i < image_size; ++i)
     {
