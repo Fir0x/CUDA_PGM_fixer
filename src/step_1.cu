@@ -16,7 +16,7 @@ namespace Core
     };
 
     // Compact
-    void step_1(thrust::device_vector<int>& to_fix)
+    void step_1(thrust::device_vector<int> &to_fix)
     {
         thrust::copy_if(to_fix.begin(), to_fix.end(), to_fix.begin(), generate_mask());
     }
@@ -25,19 +25,24 @@ namespace Core
 
 namespace CustomCore
 {
-    __global__ void build_predicate(int* to_fix, int* predicate, int size)  
+    __global__ void build_predicate(int *to_fix, int *predicate, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         if (id < size)
             predicate[id] = to_fix[id] != -27;
     }
 
-    __global__ void scatter(int* to_fix, int* to_fix_cpy, int* predicate, int size) 
+    __global__ void scatter(int *to_fix, int *to_fix_cpy, int *predicate, int size)
     {
-        int id = blockIdx.x * blockDim.x + threadIdx.x; 
-        if (id < size) {
-            int new_index = predicate[id];
-            to_fix[new_index] = to_fix_cpy[id];
+        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        if (id < size)
+        {
+            int new_val = to_fix_cpy[id];
+            if (new_val != -27)
+            {
+                int new_index = predicate[id];
+                to_fix[new_index] = new_val;
+            }
         }
     }
 
@@ -52,7 +57,7 @@ namespace CustomCore
         // TODO /!\ for first version, don't use streams, will add it later
 
         // 1 Build the predicate vector
-        int* predicate;
+        int *predicate;
         cudaMalloc_custom(&predicate, sizeof(int) * size);
         std::cout << "Start predicate kernel" << std::endl;
         build_predicate<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
@@ -61,9 +66,16 @@ namespace CustomCore
 
         // 2 Exclusive sum of the predicate
         std::cout << "Start scan" << std::endl;
-        scan(predicate, size, false);
-        
+        scan(predicate, size, true);
+
         // 3 Scatter to the corresponding addresses
+        const int image_size = imageInfo.width * imageInfo.height;
+        { // debug
+            thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
+            auto it = thrust::find(tmp_fix, tmp_fix + size, -27);
+            std::cout << "It info before: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
+        }
+
         int *to_fix_cpy;
         cudaMalloc_custom(&to_fix_cpy, sizeof(int) * size);
         cudaMemcpy(to_fix_cpy, to_fix, sizeof(int) * size, cudaMemcpyDeviceToDevice);
@@ -72,19 +84,11 @@ namespace CustomCore
         checkKernelError("scatter");
         cudaDeviceSynchronize();
 
-        /*int *tmp;
-        cudaMalloc(&tmp, sizeof(int) * size);
-        cudaMemcpy(tmp, to_fix, sizeof(int) * size, cudaMemcpyDeviceToHost);
-        for (int i = 0; i < imageInfo.height * imageInfo.width; i++) {
-            std::cout << "Go" << std::endl;
-            int val = tmp[i];
-            std::cout << "Geted values" << std::endl;
-            if (val == -27) 
-            {
-                std::cout << "Bad values left" << std::endl;
-            }
+        { // debug
+            thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
+            auto it = std::find(tmp_fix, tmp_fix + size, -27);
+            std::cout << "It info after: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
         }
-        std::cout << "Whoop whoop" << std::endl;*/
 
         cudaFree(predicate);
         cudaFree(to_fix_cpy);

@@ -27,8 +27,6 @@ void fix_image_cpu(Image& to_fix)
 
     // Scatter to the corresponding addresses
     auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
-    std::cout << image_size << std::endl;
-    std::cout << "Size before: " << to_fix.buffer.size() << std::endl;
     std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
     for (std::size_t i = 0; i < predicate.size(); ++i)
@@ -36,7 +34,6 @@ void fix_image_cpu(Image& to_fix)
             to_fix.buffer[predicate[i]] = to_fix.buffer[i];
 
     it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
-    std::cout << "Size after: " << to_fix.buffer.size() << std::endl;
     std::cout << "It info after: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
 
     // #2 Apply map to fix pixels
