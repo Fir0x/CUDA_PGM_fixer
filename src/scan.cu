@@ -255,7 +255,7 @@ namespace CustomCore
                                                      block_order,
                                                      inclusive);
 
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
         cudaFree(shared_sum);
         cudaFree(shared_state);
         cudaFree(block_order);

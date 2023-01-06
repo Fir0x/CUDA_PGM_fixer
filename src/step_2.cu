@@ -70,31 +70,31 @@ namespace CustomCore
     // Apply map to fix pixels
     void step_2([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
     {
-        std::cout << "=== Start step 2 custom" << std::endl;
+        //std::cout << "=== Start step 2 custom" << std::endl;
         int size = imageInfo.height * imageInfo.width;
 
-        { // debug
+        // { // debug
 
-            thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
-            for (int i = 0; i < 10; i++)
-            {
-                std::cout << tmp_fix[i] << " ; ";
-            }
-            std::cout << std::endl;
-            std::cout << "Accumulate before: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
-        }
+        //     thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
+        //     for (int i = 0; i < 10; i++)
+        //     {
+        //         std::cout << tmp_fix[i] << " ; ";
+        //     }
+        //     std::cout << std::endl;
+        //     std::cout << "Accumulate before: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
+        // }
 
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         map_fix<<<nbBlocks, NB_THREADS>>>(to_fix, size);
         checkKernelError("map_fix");
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
-        { // debug
-            thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
-            std::cout << "Accumulate after: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
-            auto it = thrust::find_if(tmp_fix, tmp_fix + size, less_than_0());
-            if (it != tmp_fix + size)
-                std::cout << "ERROR negative values: " << it - tmp_fix << " Val: " << it[0] << std::endl;
-        }
+        // { // debug
+        //     thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
+        //     std::cout << "Accumulate after: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
+        //     auto it = thrust::find_if(tmp_fix, tmp_fix + size, less_than_0());
+        //     if (it != tmp_fix + size)
+        //         std::cout << "ERROR negative values: " << it - tmp_fix << " Val: " << it[0] << std::endl;
+        // }
     }
 } // namespace CustomCore
