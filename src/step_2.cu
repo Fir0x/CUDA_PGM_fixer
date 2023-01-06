@@ -53,15 +53,14 @@ namespace CustomCore
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         if (id < size)
         {
-            int before = to_fix[id];
-            if (id % 4 == 0)
-                to_fix[id] += 1;
-            else if (id % 4 == 1)
-                to_fix[id] -= 5;
-            else if (id % 4 == 2)
-                to_fix[id] += 3;
-            else if (id % 4 == 3)
-                to_fix[id] -= 8;
+            int modulo = id % 4;
+            //constexpr int values[4] = { 1, -5, 3, -8 };
+            int *values = (int*)alloca(4 * sizeof(int));
+            values[0] = 1;
+            values[1] = -5;
+            values[2] = 3;
+            values[3] = -8;
+            to_fix[id] += values[modulo];
 
             // if (to_fix[id] < 0)
             //     printf("Error neg values during map: %d -> %d\n", before, to_fix[id]);
