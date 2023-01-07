@@ -87,10 +87,12 @@ namespace CustomCore
         for (int i = start_id + 1; i < start_id + work_per_thread; i++)
         {
             int val = histo[i];
-            if (min == 0 || (val != 0 && val < min))
-            {
-                min = val;
-            }
+            // if (min == 0 || (val != 0 && val < min))
+            // {
+            //     min = val;
+            // }
+            int boolean = (min == 0 || (val != 0 && val < min));
+            min = val * boolean + min * !boolean;
         }
         min_non_zeros[threadIdx.x] = min;
 
@@ -103,10 +105,12 @@ namespace CustomCore
             for (int i = 0; i < NB_THREADS / work_per_thread; i++)
             {
                 int val = min_non_zeros[i];
-                if (min == 0 || (val != 0 && val < min))
-                {
-                    min = val;
-                }
+                // if (min == 0 || (val != 0 && val < min))
+                // {
+                //     min = val;
+                // }
+                int boolean = (min == 0 || (val != 0 && val < min));
+                min = val * boolean + min * !boolean;
             }
             *find_first_non_zero = min;
         }
