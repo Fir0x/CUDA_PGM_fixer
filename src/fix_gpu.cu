@@ -1,8 +1,9 @@
 #include "fix_gpu.hh"
+#include <cstring>
 #include <thrust/scan.h>
 #include <thrust/execution_policy.h>
 
-void fix_image_gpu(Image &to_fix)
+void Core::fix_image_gpu(Image &to_fix)
 {
     // Send image to GPU
     thrust::device_vector<int> d_fix(to_fix.buffer);
@@ -16,35 +17,52 @@ void fix_image_gpu(Image &to_fix)
     thrust::copy(d_fix.begin(), d_fix.end(), to_fix.buffer.begin());
 }
 
-void fix_image_gpu_custom(Image &to_fix)
+void CustomCore::fix_image_gpu_custom(Image &to_fix, const CustomCore::StreamPool& streamPool)
 {
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+
     // Send image to GPU
     const int image_size = to_fix.width * to_fix.height;
+    int *pinedBuffer;
+    cudaError_t err;
+    err = cudaMallocHost((void**)&pinedBuffer, sizeof(int) * to_fix.buffer.size());
+    if (err)
+    {
+        std::cout << "Host Alloc ERROR: " << cudaGetErrorString(err) << std::endl;
+        exit(err);
+    }
+    std::memcpy(pinedBuffer, to_fix.buffer.data(), to_fix.buffer.size() * sizeof(int));
+
     int *image_data;
     size_t length_pitch;
 
     // cudaError_t err = cudaMallocPitch(&image_data, &length_pitch, sizeof(int) * to_fix.width, to_fix.height);
-    cudaError_t err = cudaMalloc(&image_data, sizeof(int) * to_fix.buffer.size());
-    if (err != 0)
-        exit(err);
+    cudaMallocAsync_custom(&image_data, sizeof(int) * to_fix.buffer.size(), stream);
     // cudaMemcpy2D(image_data, length_pitch, to_fix.buffer.data(), 0, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyHostToDevice);
-    err = cudaMemcpy(image_data, to_fix.buffer.data(), sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice);
-    if (err != 0)
+    err = cudaMemcpyAsync(image_data, pinedBuffer, sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice, stream);
+    if (err)
+    {
+        std::cout << "Memcpy ERROR: " << cudaGetErrorString(err) << std::endl;
         exit(err);
+    }
 
     CustomCore::ImageInfo imageInfo = {to_fix.width, to_fix.height, length_pitch, to_fix.buffer.size()};
 
-    CustomCore::step_1(image_data, imageInfo);
-    CustomCore::step_2(image_data, imageInfo);
-    CustomCore::step_3(image_data, imageInfo);
+    CustomCore::step_1(image_data, imageInfo, stream);
+    CustomCore::step_2(image_data, imageInfo, stream);
+    CustomCore::step_3(image_data, imageInfo, stream);
 
     std::cout << "End of steps " << std::endl;
 
     // Get data back to CPU
     // cudaMemcpy2D(to_fix.buffer.data(), 0, image_data, length_pitch, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyDeviceToHost);
-    err = cudaMemcpy(&to_fix.buffer[0], image_data, sizeof(int) * image_size, cudaMemcpyDeviceToHost);
+    err = cudaMemcpyAsync(pinedBuffer, image_data, sizeof(int) * to_fix.buffer.size(), cudaMemcpyDeviceToHost, stream);
     if (err != 0) {
         std::cout << cudaGetErrorString(err) << std::endl;
         exit(err);
     }
+    std::memcpy(to_fix.buffer.data(), pinedBuffer, to_fix.buffer.size() * sizeof(int));
+
+    cudaStreamDestroy(stream);
 }

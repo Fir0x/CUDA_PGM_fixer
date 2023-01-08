@@ -235,20 +235,20 @@ namespace CustomCore
         }
     }
 
-    void scan(int *buffer, int size, bool inclusive)
+    void scan(int *buffer, int size, bool inclusive, cudaStream_t stream)
     {
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         int *shared_state;
-        cudaMalloc(&shared_state, sizeof(int) * nbBlocks);
-        cudaMemset(shared_state, 0, sizeof(int) * nbBlocks);
+        cudaMallocAsync_custom(&shared_state, sizeof(int) * nbBlocks, stream);
+        cudaMemsetAsync(shared_state, 0, sizeof(int) * nbBlocks, stream);
         int *shared_sum;
-        cudaMalloc(&shared_sum, sizeof(int) * nbBlocks);
-        cudaMemset(shared_sum, 0, sizeof(int) * nbBlocks);
+        cudaMallocAsync_custom(&shared_sum, sizeof(int) * nbBlocks, stream);
+        cudaMemsetAsync(shared_sum, 0, sizeof(int) * nbBlocks, stream);
         int *block_order;
-        cudaMalloc(&block_order, sizeof(int));
-        cudaMemset(block_order, 0, sizeof(int));
+        cudaMallocAsync_custom(&block_order, sizeof(int), stream);
+        cudaMemsetAsync(block_order, 0, sizeof(int), stream);
 
-        scan_kernel_1<int><<<nbBlocks, NB_THREADS>>>(buffer,
+        scan_kernel_1<int><<<nbBlocks, NB_THREADS, 0, stream>>>(buffer,
                                                      size,
                                                      shared_state,
                                                      shared_sum,
@@ -256,8 +256,8 @@ namespace CustomCore
                                                      inclusive);
 
         //cudaDeviceSynchronize();
-        cudaFree(shared_sum);
-        cudaFree(shared_state);
-        cudaFree(block_order);
+        cudaFreeAsync(shared_sum, stream);
+        cudaFreeAsync(shared_state, stream);
+        cudaFreeAsync(block_order, stream);
     }
 }

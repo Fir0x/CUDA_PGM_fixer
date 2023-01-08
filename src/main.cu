@@ -39,7 +39,27 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     std::cout << "Done, starting compute" << std::endl;
 
-    nb_images = 1;
+#ifdef REF_GPU_FIX
+    #pragma omp parallel for
+    for (int i = 0; i < nb_images; ++i)
+    {
+        images[i] = pipeline.get_image(i);
+        Core::fix_image_gpu(images[i]);
+    }
+#elif defined(GPU_FIX)
+    CustomCore::StreamPool streamPool;
+
+    // cudaStreamCreate(&streamPool.imageAllocStream);
+    // cudaStreamCreate(&streamPool.kernelStream);
+    // cudaStreamCreate(&streamPool.device2HostStream);
+    // cudaStreamCreate(&streamPool.host2DeviceStream);
+    
+    for (int i = 0; i < nb_images; ++i)
+    {
+        images[i] = pipeline.get_image(i);
+        CustomCore::fix_image_gpu_custom(images[i], streamPool);
+    }
+#else
     #pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {
@@ -51,14 +71,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         // You must get the image from the pipeline as they arrive and launch computations right away
         // There are still ways to speeds this process of course (wait for last class)
         images[i] = pipeline.get_image(i);
-#ifdef REF_GPU_FIX
-        fix_image_gpu(images[i]);
-#elif defined GPU_FIX
-        fix_image_gpu_custom(images[i]);
-#else
         fix_image_cpu(images[i]);
-#endif
     }
+#endif
 
     std::cout << "Done with compute, starting stats" << std::endl;
 

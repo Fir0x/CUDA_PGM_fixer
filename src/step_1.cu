@@ -44,7 +44,7 @@ namespace CustomCore
     }
 
     // Compact
-    void step_1([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
+    void step_1(int *to_fix, ImageInfo imageInfo, cudaStream_t stream)
     {
         //std::cout << "=== Start step 1 custom" << std::endl;
 
@@ -55,9 +55,9 @@ namespace CustomCore
 
         // 1 Build the predicate vector
         int *predicate;
-        cudaMalloc_custom(&predicate, sizeof(int) * size);
+        cudaMallocAsync_custom(&predicate, sizeof(int) * size, stream);
         std::cout << "Start predicate kernel" << std::endl;
-        build_predicate<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
+        build_predicate<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, predicate, size);
         checkKernelError("build_predicate");
         //cudaDeviceSynchronize();
 
@@ -73,8 +73,8 @@ namespace CustomCore
         // }
 
         // 2 Exclusive sum of the predicate
-        std::cout << "Start scan" << std::endl;
-        scan(predicate, size, false);
+        //std::cout << "Start scan" << std::endl;
+        scan(predicate, size, false, stream);
 
         // { // debug
         //     thrust::device_ptr<int> pred_tmp = thrust::device_pointer_cast(predicate);
@@ -106,7 +106,7 @@ namespace CustomCore
         cudaMalloc_custom(&to_fix_cpy, sizeof(int) * size);
         cudaMemcpy(to_fix_cpy, to_fix, sizeof(int) * size, cudaMemcpyDeviceToDevice);
         //std::cout << "Start scatter" << std::endl;
-        scatter<<<nbBlocks, NB_THREADS>>>(to_fix, to_fix_cpy, predicate, size);
+        scatter<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, to_fix_cpy, predicate, size);
         checkKernelError("scatter");
         //cudaDeviceSynchronize();
 
@@ -122,7 +122,7 @@ namespace CustomCore
         //     std::cout << "It info after: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
         // }
 
-        cudaFree(predicate);
-        cudaFree(to_fix_cpy);
+        cudaFreeAsync(predicate, stream);
+        cudaFreeAsync(to_fix_cpy, stream);
     }
 } // namespace CustomCore

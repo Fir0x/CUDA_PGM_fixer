@@ -67,7 +67,7 @@ namespace CustomCore
         }
     }
     // Apply map to fix pixels
-    void step_2([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
+    void step_2(int *to_fix, ImageInfo imageInfo, cudaStream_t stream)
     {
         //std::cout << "=== Start step 2 custom" << std::endl;
         int size = imageInfo.height * imageInfo.width;
@@ -84,7 +84,7 @@ namespace CustomCore
         // }
 
         int nbBlocks = std::ceil((float)size / NB_THREADS);
-        map_fix<<<nbBlocks, NB_THREADS>>>(to_fix, size);
+        map_fix<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, size);
         checkKernelError("map_fix");
         //cudaDeviceSynchronize();
 
