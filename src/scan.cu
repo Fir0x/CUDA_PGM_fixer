@@ -3,6 +3,58 @@
 namespace CustomCore
 {
 
+    __inline__ __device__ void warp_reduce0(int *buffer_shared, int tid)
+    {
+        buffer_shared[tid] += buffer_shared[tid + 32];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 16];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 8];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 4];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 2];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 1];
+        __syncwarp();
+    }
+
+    __inline__ __device__ int warp_reduce1(int val, int tid)
+    {
+#pragma unroll
+        for (int offset = warpSize; offset > 0; offset >>= 1)
+            val += __shfl_down_sync(~0, val, tid + offset);
+        return val;
+    }
+
+    __device__ void reduce2(int *buffer_shared, int *blocks_sum, int block_id)
+    {
+        int sum = 0;
+        uint tid = threadIdx.x;
+
+        __shared__ int sdata[NB_THREADS];
+        sdata[tid] = buffer_shared[tid];
+        __syncthreads();
+        for (int s = blockDim.x / 2; s > 32; s >>= 1)
+        {
+            if (tid < s)
+                sdata[tid] += sdata[tid + s];
+            __syncthreads();
+        }
+
+        if (tid < 32)
+        {
+            /*int res = warp_reduce1(sdata[tid], tid);
+            if (tid == 0)
+                atomicAdd(&blocks_sum[block_id], res); */
+            
+            warp_reduce0(sdata, tid);
+            if (tid == 0)
+                atomicAdd(&blocks_sum[block_id], sdata[0]);
+        }
+
+    }
+
     __device__ void reduce1(int *buffer_shared, int *blocks_sum, int block_id)
     {
         int sum = 0;
@@ -16,6 +68,7 @@ namespace CustomCore
         {
             if (tid < s)
                 sdata[tid] += sdata[tid + s];
+
             __syncthreads();
         }
 
@@ -29,9 +82,10 @@ namespace CustomCore
         // Really naive reduce, need improvements
         uint id = threadIdx.x;
         atomicAdd(&blocks_sum[block_id], buffer_shared[id]);
+        __syncthreads();
     }
 
-    __device__ void kogge_stone_scan_inclusive0(int *buffer_shared, int local_index)
+    __device__ void kogge_stone_scan0(int *buffer_shared, int local_index)
     {
         int plus = 1;
         int val;
@@ -53,17 +107,17 @@ namespace CustomCore
         }
     }
 
-    __device__ void sklansky_scan_inclusive0(int *buffer_shared, int local_index)
+    __device__ void sklansky_scan0(int *buffer_shared, int local_index)
     {
         int val;
         int previous_pow = -1;
-        #pragma unroll
+#pragma unroll
         for (int pow = 2; pow <= 256; pow <<= 1)
         {
             if ((local_index + previous_pow + 1) % pow == 0)
             {
                 int val = buffer_shared[local_index];
-                #pragma unroll
+#pragma unroll
                 for (int i = 1; i <= pow >> 1; i++)
                 {
                     buffer_shared[local_index + i] += val;
@@ -72,41 +126,6 @@ namespace CustomCore
             __syncthreads();
             previous_pow = pow;
         }
-    }
-
-    __device__ void kogge_stone_scan_exclusive(int *buffer_shared, int local_index, int total_added)
-    {
-        int plus = 1;
-        int val;
-
-        // Todo find a way to remove this temp buffer
-        __shared__ int buffer_exclu[NB_THREADS];
-        buffer_exclu[threadIdx.x] = buffer_shared[threadIdx.x];
-        __syncthreads();
-
-        for (plus = 1; plus <= blockDim.x / 2; plus *= 2)
-        {
-            if (local_index + plus < blockDim.x)
-            {
-                val = buffer_shared[local_index];
-            }
-            __syncthreads();
-            if (local_index + plus < blockDim.x)
-            {
-                if (local_index + plus != blockDim.x - 1)
-                    buffer_shared[local_index + plus] += val;
-                else
-                    buffer_shared[local_index + plus] += val;
-            }
-            __syncthreads();
-        }
-
-        // TODO find a way to avoid this
-        if (threadIdx.x == 0)
-            buffer_shared[local_index] -= (buffer_exclu[local_index] - total_added);
-        else
-            buffer_shared[local_index] -= buffer_exclu[local_index];
-        __syncthreads();
     }
 
     // Do the decoupled loop back and add the sum on the buffer_shared[0]
@@ -162,7 +181,7 @@ namespace CustomCore
             __syncthreads();
 
             // 1. Reduce in the block
-            reduce1(buffer_shared, blocks_sum, block_manual_id);
+            reduce2(buffer_shared, blocks_sum, block_manual_id);
             __syncthreads();
             __threadfence_system();
 
@@ -192,85 +211,27 @@ namespace CustomCore
             // Everyone wait the thread 0 to finish decoupled loop back
             __syncthreads();
 
-            // --- 3. Scan Kogge-Stone Way - Final scan on the block itself
+            // --- 3. Scan - Final scan on the block itself
             if (inclusive)
-                sklansky_scan_inclusive0(buffer_shared, local_index);
+                sklansky_scan0(buffer_shared, local_index);
             else
-                kogge_stone_scan_exclusive(buffer_shared, local_index, total_added);
+            {
+                int start_val = buffer_shared[threadIdx.x];
+                __syncthreads();
+                sklansky_scan0(buffer_shared, local_index);
+                // kogge_stone_scan0(buffer_shared, local_index);
+                if (threadIdx.x == 0)
+                    buffer_shared[local_index] -= start_val - total_added;
+                else
+                    buffer_shared[local_index] -= start_val;
+                __syncthreads();
+            }
 
             __syncthreads();
             buffer[global_index] = buffer_shared[local_index];
             // --- End of Scan on the block
         }
     }
-
-    /**
-     * Kogge-Stone-Scan
-     * Use 2 arrays to store sum A and sum P
-     **/
-    /*    template <typename T>
-        __global__ void scan_kernel_2(T *buffer,
-                                      int size,
-                                      int *shared_state,
-                                      int *blocks_sum_a,
-                                      int *blocks_sum_p,
-                                      int *block_order,
-                                      bool inclusive)
-        {
-            if (threadIdx.x < size)
-            {
-                __shared__ int block_manual_id;
-                __shared__ int buffer_shared[NB_THREADS];
-
-                if (threadIdx.x == 0)
-                {
-                    block_manual_id = atomicAdd(&block_order[0], 1);
-                }
-
-                __threadfence_system();
-                __syncthreads();
-
-                int local_index = threadIdx.x;
-                int global_index = blockDim.x * block_manual_id + threadIdx.x;
-                buffer_shared[local_index] = buffer[global_index];
-                __syncthreads();
-
-                // 1. Reduce in the block
-                reduce_use_atomic(buffer_shared, blocks_sum_a, block_manual_id);
-                __syncthreads();
-
-                if (threadIdx.x == 0)
-                    atomicAdd(&shared_state[block_manual_id], 1);
-                __threadfence_system();
-
-                // --- 2. decoupled loop back to get sum of other blocks
-                int total_added = 0;
-                if (threadIdx.x == 0)
-                    total_added = decoupled_loop_back(buffer_shared, shared_state, blocks_sum_a, block_manual_id);
-
-                if (threadIdx.x == 0)
-                    atomicExch(&blocks_sum_p[block_manual_id], total_added + blocks_sum_a[block_manual_id]);
-                __threadfence_system();
-
-                if (threadIdx.x == 0)
-                    atomicExch(&shared_state[block_manual_id], 2);
-                __threadfence_system();
-                // --- End of decoupled loop back
-
-                // Everyone wait the thread 0 to finish decoupled loop back
-                __syncthreads();
-
-                // --- 3. Scan Kogge-Stone Way - Final scan on the block itself
-                if (inclusive)
-                    kogge_stone_scan_inclusive(buffer_shared, local_index);
-                else
-                    kogge_stone_scan_exclusive(buffer_shared, local_index, total_added);
-
-                __syncthreads();
-                buffer[global_index] = buffer_shared[local_index];
-                // --- End of Scan on the block
-            }
-        }*/
 
     void scan(int *buffer, int size, bool inclusive)
     {
