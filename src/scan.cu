@@ -3,22 +3,6 @@
 namespace CustomCore
 {
 
-    __inline__ __device__ void warp_reduce0(int *buffer_shared, int tid)
-    {
-        buffer_shared[tid] += buffer_shared[tid + 32];
-        __syncwarp();
-        buffer_shared[tid] += buffer_shared[tid + 16];
-        __syncwarp();
-        buffer_shared[tid] += buffer_shared[tid + 8];
-        __syncwarp();
-        buffer_shared[tid] += buffer_shared[tid + 4];
-        __syncwarp();
-        buffer_shared[tid] += buffer_shared[tid + 2];
-        __syncwarp();
-        buffer_shared[tid] += buffer_shared[tid + 1];
-        __syncwarp();
-    }
-
     __inline__ __device__ int warp_reduce1(int val)
     {
 #pragma unroll
@@ -35,6 +19,22 @@ namespace CustomCore
 
         if (tid % 32 == 0)
             atomicAdd(&blocks_sum[block_id], sum);
+    }
+
+    __inline__ __device__ void warp_reduce0(int *buffer_shared, int tid)
+    {
+        buffer_shared[tid] += buffer_shared[tid + 32];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 16];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 8];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 4];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 2];
+        __syncwarp();
+        buffer_shared[tid] += buffer_shared[tid + 1];
+        __syncwarp();
     }
 
     __device__ void reduce2(int *buffer_shared, int *blocks_sum, int block_id)
@@ -112,6 +112,32 @@ namespace CustomCore
         }
     }
 
+    __device__ void sklansky_scan1(int *buffer_shared, int local_index)
+    {
+        int val;
+        int previous_pow = 1;
+        int offset = 0;
+#pragma unroll
+        for (int pow = 2; pow <= 256; pow <<= 1)
+        {
+            int dist = local_index / pow;
+
+            int ref_index = dist * pow;
+            int index_take_from = ref_index + offset;
+            int modulo = local_index % ref_index;
+            if (modulo == -1)
+                modulo = local_index;
+
+            if (modulo <= pow && modulo >= previous_pow)
+                buffer_shared[local_index] += buffer_shared[index_take_from];
+
+            __syncthreads();
+            previous_pow = pow;
+            offset <<= 1;
+            offset += 1;
+        }
+    }
+
     __device__ void sklansky_scan0(int *buffer_shared, int local_index)
     {
         int val;
@@ -134,7 +160,8 @@ namespace CustomCore
     }
 
     // Do the decoupled loop back and add the sum on the buffer_shared[0]
-    __device__ int decoupled_loop_back(int *buffer_shared, int *shared_state, int *blocks_sum, int block_manual_id)
+    // In scan_kernel0 -> blocks_sum_a == int *blocks_sum_p
+    __device__ int decoupled_loop_back(int *buffer_shared, int *shared_state, int *blocks_sum_a, int *blocks_sum_p, int block_manual_id)
     {
         int total_added = 0;
         int block_look_at = block_manual_id - 1;
@@ -147,12 +174,12 @@ namespace CustomCore
             //  do nothing, just wait block to be valid
             if (state == 1)
             {
-                total_added += blocks_sum[block_look_at];
+                total_added += blocks_sum_a[block_look_at];
                 block_look_at -= 1;
             }
             else if (state == 2)
             { // Pass on a P block -> the end of loop back
-                total_added += blocks_sum[block_look_at];
+                total_added += blocks_sum_p[block_look_at];
                 loop_back_in_progress = 0;
             }
         }
@@ -161,10 +188,75 @@ namespace CustomCore
         return total_added;
     }
 
-    /**
-     * Kogge-Stone-Scan
-     * Use neutral state to wait for total sum added
-     **/
+    template <typename T>
+    __global__ void scan_kernel1(
+        T *buffer, int size, int *shared_state, int *blocks_sum_a, int *blocks_sum_p, int *block_order, bool inclusive)
+    {
+        __shared__ int block_manual_id;
+        __shared__ int buffer_shared[NB_THREADS];
+
+        // Block ordering
+        if (threadIdx.x == 0)
+            block_manual_id = atomicAdd(&block_order[0], 1);
+        __threadfence_system();
+        __syncthreads();
+
+        int global_index = blockDim.x * block_manual_id + threadIdx.x;
+        if (global_index < size)
+        {
+            int local_index = threadIdx.x;
+            buffer_shared[local_index] = buffer[global_index];
+            __syncthreads();
+
+            // 1. Reduce in the block
+            reduce3(buffer_shared, blocks_sum_a, block_manual_id);
+            __syncthreads();
+            __threadfence_system();
+
+            if (threadIdx.x == 0)
+                atomicAdd(&shared_state[block_manual_id], 1);
+            __threadfence_system();
+
+            // --- 2. decoupled loop back to get sum of other blocks
+            int total_added = 0;
+            if (threadIdx.x == 0)
+                total_added = decoupled_loop_back(buffer_shared, shared_state,
+                                                  blocks_sum_a, blocks_sum_p, block_manual_id);
+
+            if (threadIdx.x == 0)
+                atomicExch(&blocks_sum_p[block_manual_id], total_added + blocks_sum_a[block_manual_id]);
+            __threadfence_system();
+
+            if (threadIdx.x == 0)
+                atomicExch(&shared_state[block_manual_id], 2);
+            __threadfence_system();
+            // --- End of decoupled loop back
+
+            // Everyone wait the thread 0 to finish decoupled loop back
+            __syncthreads();
+
+            // --- 3. Scan - Final scan on the block itself
+            if (inclusive)
+                sklansky_scan0(buffer_shared, local_index);
+            else
+            {
+                int start_val = buffer_shared[threadIdx.x];
+                __syncthreads();
+                sklansky_scan0(buffer_shared, local_index);
+                // kogge_stone_scan0(buffer_shared, local_index);
+                if (threadIdx.x == 0)
+                    buffer_shared[local_index] -= start_val - total_added;
+                else
+                    buffer_shared[local_index] -= start_val;
+                __syncthreads();
+            }
+
+            __syncthreads();
+            buffer[global_index] = buffer_shared[local_index];
+            // --- End of Scan on the block
+        }
+    }
+
     template <typename T>
     __global__ void scan_kernel0(
         T *buffer, int size, int *shared_state, int *blocks_sum, int *block_order, bool inclusive)
@@ -197,7 +289,7 @@ namespace CustomCore
             // --- 2. decoupled loop back to get sum of other blocks
             int total_added = 0;
             if (threadIdx.x == 0)
-                total_added = decoupled_loop_back(buffer_shared, shared_state, blocks_sum, block_manual_id);
+                total_added = decoupled_loop_back(buffer_shared, shared_state, blocks_sum, blocks_sum, block_manual_id);
 
             // Put on a state 3 to force other blocks to wait
             if (threadIdx.x == 0)
@@ -251,10 +343,20 @@ namespace CustomCore
         cudaMalloc(&block_order, sizeof(int));
         cudaMemset(block_order, 0, sizeof(int));
 
-        scan_kernel0<int><<<nbBlocks, NB_THREADS>>>(buffer,
+        /*scan_kernel0<int><<<nbBlocks, NB_THREADS>>>(buffer,
                                                     size,
                                                     shared_state,
                                                     shared_sum,
+                                                    block_order,
+                                                    inclusive);*/
+
+        int *shared_sum_p;
+        cudaMalloc(&shared_sum_p, sizeof(int) * nbBlocks);
+        scan_kernel1<int><<<nbBlocks, NB_THREADS>>>(buffer,
+                                                    size,
+                                                    shared_state,
+                                                    shared_sum,
+                                                    shared_sum_p,
                                                     block_order,
                                                     inclusive);
 
