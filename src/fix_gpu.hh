@@ -40,5 +40,5 @@ namespace CustomCore
     void cudaMalloc_custom(int** ptr, size_t size);
     void checkKernelError(std::string name);
 
-    void fix_image_gpu_custom(Image& to_fix, const StreamPool& streamPool);
+    void fix_image_gpu_custom(Image& to_fix);
 } // namespace CustomCore

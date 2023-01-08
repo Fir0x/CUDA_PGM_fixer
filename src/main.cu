@@ -47,17 +47,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         Core::fix_image_gpu(images[i]);
     }
 #elif defined(GPU_FIX)
-    CustomCore::StreamPool streamPool;
-
-    // cudaStreamCreate(&streamPool.imageAllocStream);
-    // cudaStreamCreate(&streamPool.kernelStream);
-    // cudaStreamCreate(&streamPool.device2HostStream);
-    // cudaStreamCreate(&streamPool.host2DeviceStream);
-    
     for (int i = 0; i < nb_images; ++i)
     {
         images[i] = pipeline.get_image(i);
-        CustomCore::fix_image_gpu_custom(images[i], streamPool);
+        CustomCore::fix_image_gpu_custom(images[i]);
     }
 #else
     #pragma omp parallel for

@@ -17,7 +17,7 @@ void Core::fix_image_gpu(Image &to_fix)
     thrust::copy(d_fix.begin(), d_fix.end(), to_fix.buffer.begin());
 }
 
-void CustomCore::fix_image_gpu_custom(Image &to_fix, const CustomCore::StreamPool& streamPool)
+void CustomCore::fix_image_gpu_custom(Image &to_fix)
 {
     cudaStream_t stream;
     cudaStreamCreate(&stream);
