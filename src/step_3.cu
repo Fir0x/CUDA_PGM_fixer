@@ -130,7 +130,7 @@ namespace CustomCore
 
         // 1. Histogram
         int *histogram;
-        cudaMallocAsync_custom(&histogram, sizeof(int) * 256, stream);
+        cudaMallocAsync(&histogram, sizeof(int) * 256, stream);
         cudaMemsetAsync(histogram, 0, sizeof(int) * 256, stream);
         build_histogram<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, histogram, size);
         checkKernelError("build_histogram");
@@ -146,7 +146,7 @@ namespace CustomCore
 
         // 3. Find the first non-zero value in the cumulative histogram
         int *first_non_zero;
-        cudaMallocAsync_custom(&first_non_zero, sizeof(int), stream);
+        cudaMallocAsync(&first_non_zero, sizeof(int), stream);
         int work_per_thread = 16;
         find_first_non_zero<<<1, 16, 0, stream>>>(histogram, work_per_thread, first_non_zero);
         checkKernelError("find_first_non_zero");

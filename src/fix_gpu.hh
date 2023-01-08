@@ -38,7 +38,6 @@ namespace CustomCore
     void scan(int *buffer, int size, bool inclusive, cudaStream_t);
 
     void cudaMalloc_custom(int** ptr, size_t size);
-    void cudaMallocAsync_custom(int** ptr, size_t size, cudaStream_t stream);
     void checkKernelError(std::string name);
 
     void fix_image_gpu_custom(Image& to_fix, const StreamPool& streamPool);

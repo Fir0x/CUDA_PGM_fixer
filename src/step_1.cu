@@ -55,7 +55,7 @@ namespace CustomCore
 
         // 1 Build the predicate vector
         int *predicate;
-        cudaMallocAsync_custom(&predicate, sizeof(int) * size, stream);
+        cudaMallocAsync(&predicate, sizeof(int) * size, stream);
         std::cout << "Start predicate kernel" << std::endl;
         build_predicate<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, predicate, size);
         checkKernelError("build_predicate");
@@ -103,8 +103,8 @@ namespace CustomCore
         // }
 
         int *to_fix_cpy;
-        cudaMalloc_custom(&to_fix_cpy, sizeof(int) * size);
-        cudaMemcpy(to_fix_cpy, to_fix, sizeof(int) * size, cudaMemcpyDeviceToDevice);
+        cudaMallocAsync(&to_fix_cpy, sizeof(int) * size, stream);
+        cudaMemcpyAsync(to_fix_cpy, to_fix, sizeof(int) * size, cudaMemcpyDeviceToDevice, stream);
         //std::cout << "Start scatter" << std::endl;
         scatter<<<nbBlocks, NB_THREADS, 0, stream>>>(to_fix, to_fix_cpy, predicate, size);
         checkKernelError("scatter");

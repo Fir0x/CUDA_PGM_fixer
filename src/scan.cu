@@ -239,13 +239,13 @@ namespace CustomCore
     {
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         int *shared_state;
-        cudaMallocAsync_custom(&shared_state, sizeof(int) * nbBlocks, stream);
+        cudaMallocAsync(&shared_state, sizeof(int) * nbBlocks, stream);
         cudaMemsetAsync(shared_state, 0, sizeof(int) * nbBlocks, stream);
         int *shared_sum;
-        cudaMallocAsync_custom(&shared_sum, sizeof(int) * nbBlocks, stream);
+        cudaMallocAsync(&shared_sum, sizeof(int) * nbBlocks, stream);
         cudaMemsetAsync(shared_sum, 0, sizeof(int) * nbBlocks, stream);
         int *block_order;
-        cudaMallocAsync_custom(&block_order, sizeof(int), stream);
+        cudaMallocAsync(&block_order, sizeof(int), stream);
         cudaMemsetAsync(block_order, 0, sizeof(int), stream);
 
         scan_kernel_1<int><<<nbBlocks, NB_THREADS, 0, stream>>>(buffer,

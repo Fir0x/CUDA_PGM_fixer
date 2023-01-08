@@ -38,7 +38,7 @@ void CustomCore::fix_image_gpu_custom(Image &to_fix, const CustomCore::StreamPoo
     size_t length_pitch;
 
     // cudaError_t err = cudaMallocPitch(&image_data, &length_pitch, sizeof(int) * to_fix.width, to_fix.height);
-    cudaMallocAsync_custom(&image_data, sizeof(int) * to_fix.buffer.size(), stream);
+    cudaMallocAsync(&image_data, sizeof(int) * to_fix.buffer.size(), stream);
     // cudaMemcpy2D(image_data, length_pitch, to_fix.buffer.data(), 0, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyHostToDevice);
     err = cudaMemcpyAsync(image_data, pinedBuffer, sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice, stream);
     if (err)
@@ -57,12 +57,14 @@ void CustomCore::fix_image_gpu_custom(Image &to_fix, const CustomCore::StreamPoo
 
     // Get data back to CPU
     // cudaMemcpy2D(to_fix.buffer.data(), 0, image_data, length_pitch, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyDeviceToHost);
-    err = cudaMemcpyAsync(pinedBuffer, image_data, sizeof(int) * to_fix.buffer.size(), cudaMemcpyDeviceToHost, stream);
+    err = cudaMemcpyAsync(to_fix.buffer.data(), image_data, sizeof(int) * to_fix.buffer.size(), cudaMemcpyDeviceToHost, stream);
     if (err != 0) {
         std::cout << cudaGetErrorString(err) << std::endl;
         exit(err);
     }
-    std::memcpy(to_fix.buffer.data(), pinedBuffer, to_fix.buffer.size() * sizeof(int));
+    //std::memcpy(to_fix.buffer.data(), pinedBuffer, to_fix.buffer.size() * sizeof(int));
+
+    cudaFreeHost(pinedBuffer);
 
     cudaStreamDestroy(stream);
 }

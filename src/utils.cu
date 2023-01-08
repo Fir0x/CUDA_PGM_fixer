@@ -12,16 +12,6 @@ namespace CustomCore
         }
     }
 
-    void cudaMallocAsync_custom(int **ptr, size_t size, cudaStream_t stream)
-    {
-        cudaError_t err = cudaMallocAsync(ptr, size, stream);
-        if (err != 0)
-        {
-            std::cout << "Malloc ERROR: " << cudaGetErrorString(err) << std::endl;
-            exit(err);
-        }
-    }
-
     void checkKernelError(std::string name)
     {
         cudaError_t err = cudaGetLastError();
