@@ -19,12 +19,22 @@ namespace CustomCore
         __syncwarp();
     }
 
-    __inline__ __device__ int warp_reduce1(int val, int tid)
+    __inline__ __device__ int warp_reduce1(int val)
     {
 #pragma unroll
-        for (int offset = warpSize; offset > 0; offset >>= 1)
-            val += __shfl_down_sync(~0, val, tid + offset);
+        for (int offset = warpSize / 2; offset > 0; offset >>= 1)
+            val += __shfl_down_sync(~0, val, offset);
         return val;
+    }
+
+    __device__ void reduce3(int *buffer_shared, int *blocks_sum, int block_id)
+    {
+        int sum = 0;
+        uint tid = threadIdx.x;
+        sum = warp_reduce1(buffer_shared[tid]);
+
+        if (tid % 32 == 0)
+            atomicAdd(&blocks_sum[block_id], sum);
     }
 
     __device__ void reduce2(int *buffer_shared, int *blocks_sum, int block_id)
@@ -44,15 +54,10 @@ namespace CustomCore
 
         if (tid < 32)
         {
-            /*int res = warp_reduce1(sdata[tid], tid);
-            if (tid == 0)
-                atomicAdd(&blocks_sum[block_id], res); */
-            
             warp_reduce0(sdata, tid);
             if (tid == 0)
                 atomicAdd(&blocks_sum[block_id], sdata[0]);
         }
-
     }
 
     __device__ void reduce1(int *buffer_shared, int *blocks_sum, int block_id)
@@ -181,7 +186,7 @@ namespace CustomCore
             __syncthreads();
 
             // 1. Reduce in the block
-            reduce2(buffer_shared, blocks_sum, block_manual_id);
+            reduce3(buffer_shared, blocks_sum, block_manual_id);
             __syncthreads();
             __threadfence_system();
 
