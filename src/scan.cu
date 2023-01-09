@@ -278,7 +278,7 @@ namespace CustomCore
             __syncthreads();
 
             // 1. Reduce in the block
-            reduce3(buffer_shared, blocks_sum, block_manual_id);
+            reduce1(buffer_shared, blocks_sum, block_manual_id);
             __syncthreads();
             __threadfence_system();
 

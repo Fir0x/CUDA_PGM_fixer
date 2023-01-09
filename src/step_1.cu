@@ -25,14 +25,59 @@ namespace Core
 
 namespace CustomCore
 {
-    __global__ void build_predicate(int *to_fix, int *predicate, int size)
+    __global__ void build_predicate2(int *to_fix, int *predicate, int size)
+    {
+        // WIP TODO
+        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        // Grid stride loop pattern and vectorial access
+        for (int i = id; i < size / 4; i += blockDim.x * gridDim.x)
+        {
+            int4 vals = reinterpret_cast<int4 *>(to_fix)[id];
+            predicate[id] = vals.x != -27;
+            predicate[id + 1] = vals.y != -27;
+            predicate[id + 2] = vals.z != -27;
+            predicate[id + 3] = vals.w != -27;
+        }
+
+        int remainder = size % 4;
+        if (id == size % 4 && remainder != 0)
+        {
+            while (remainder)
+            {
+                int idx = size - remainder--;
+                predicate[id] = to_fix[id] != -27;
+            }
+        }
+    }
+    __global__ void build_predicate1(int *to_fix, int *predicate, int size)
+    {
+        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        // Grid stride loop pattern
+        for (int i = id; i < size; i += blockDim.x * gridDim.x) {
+            predicate[id] = to_fix[id] != -27;
+        }
+    }
+
+    __global__ void build_predicate0(int *to_fix, int *predicate, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         if (id < size)
             predicate[id] = to_fix[id] != -27;
     }
 
-    __global__ void scatter(int *to_fix, int *to_fix_cpy, int *predicate, int size)
+    __global__ void scatter1(int *to_fix, int *predicate, int size)
+    {
+        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        if (id < size)
+        {
+            int val = to_fix[id];
+            __syncthreads();
+            if (val != -27)
+                to_fix[predicate[id]] = val;
+        }
+    }
+
+    __global__ void scatter0(int *to_fix, int *to_fix_cpy, int *predicate, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         if (id < size)
@@ -57,7 +102,17 @@ namespace CustomCore
         int *predicate;
         cudaMalloc_custom(&predicate, sizeof(int) * size);
         std::cout << "Start predicate kernel" << std::endl;
-        build_predicate<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
+        // build_predicate0<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
+        /*int numSMs;
+        int *deviceID = nullptr;
+        cudaError_t err = cudaGetDevice(deviceID);
+        if (err != 0)
+        {
+            std::cout << "GetDevice ERROR: " << cudaGetErrorString(err) << std::endl;
+            exit(err);
+        }
+        cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, *deviceID);*/
+        build_predicate1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
         checkKernelError("build_predicate");
         cudaDeviceSynchronize();
 
@@ -90,7 +145,7 @@ namespace CustomCore
 
         // 3 Scatter to the corresponding addresses
         const int image_size = imageInfo.width * imageInfo.height;
-        { // debug
+        /*{ // debug
             thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
             std::cout << "BS Fix ";
             for (int i = 0; i < 20; i++)
@@ -100,17 +155,19 @@ namespace CustomCore
             std::cout << std::endl;
             auto it = thrust::find(tmp_fix, tmp_fix + size, -27);
             std::cout << "It info before: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
-        }
+        }*/
 
-        int *to_fix_cpy;
+        /*int *to_fix_cpy;
         cudaMalloc_custom(&to_fix_cpy, sizeof(int) * size);
         cudaMemcpy(to_fix_cpy, to_fix, sizeof(int) * size, cudaMemcpyDeviceToDevice);
         std::cout << "Start scatter" << std::endl;
-        scatter<<<nbBlocks, NB_THREADS>>>(to_fix, to_fix_cpy, predicate, size);
+        scatter0<<<nbBlocks, NB_THREADS>>>(to_fix, to_fix_cpy, predicate, size);
+        cudaFree(to_fix_cpy);*/
+        scatter1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
         checkKernelError("scatter");
         cudaDeviceSynchronize();
 
-        { // debug
+        /*{ // debug
             thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
             std::cout << "AS Fix ";
             for (int i = 0; i < 20; i++)
@@ -120,9 +177,8 @@ namespace CustomCore
             std::cout << std::endl;
             auto it = std::find(tmp_fix, tmp_fix + size, -27);
             std::cout << "It info after: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
-        }
+        }*/
 
         cudaFree(predicate);
-        cudaFree(to_fix_cpy);
     }
 } // namespace CustomCore
