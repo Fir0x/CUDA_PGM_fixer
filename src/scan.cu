@@ -278,7 +278,7 @@ namespace CustomCore
             __syncthreads();
 
             // 1. Reduce in the block
-            reduce1(buffer_shared, blocks_sum, block_manual_id);
+            reduce3(buffer_shared, blocks_sum, block_manual_id);
             __syncthreads();
             __threadfence_system();
 
@@ -310,12 +310,12 @@ namespace CustomCore
 
             // --- 3. Scan - Final scan on the block itself
             if (inclusive)
-                sklansky_scan0(buffer_shared, local_index);
+                sklansky_scan1(buffer_shared, local_index);
             else
             {
                 int start_val = buffer_shared[threadIdx.x];
                 __syncthreads();
-                sklansky_scan0(buffer_shared, local_index);
+                sklansky_scan1(buffer_shared, local_index);
                 // kogge_stone_scan0(buffer_shared, local_index);
                 if (threadIdx.x == 0)
                     buffer_shared[local_index] -= start_val - total_added;
@@ -343,14 +343,14 @@ namespace CustomCore
         cudaMalloc(&block_order, sizeof(int));
         cudaMemset(block_order, 0, sizeof(int));
 
-        /*scan_kernel0<int><<<nbBlocks, NB_THREADS>>>(buffer,
+        scan_kernel0<int><<<nbBlocks, NB_THREADS>>>(buffer,
                                                     size,
                                                     shared_state,
                                                     shared_sum,
                                                     block_order,
-                                                    inclusive);*/
+                                                    inclusive);
 
-        int *shared_sum_p;
+        /*int *shared_sum_p;
         cudaMalloc(&shared_sum_p, sizeof(int) * nbBlocks);
         scan_kernel1<int><<<nbBlocks, NB_THREADS>>>(buffer,
                                                     size,
@@ -358,8 +358,7 @@ namespace CustomCore
                                                     shared_sum,
                                                     shared_sum_p,
                                                     block_order,
-                                                    inclusive);
-
+                                                    inclusive);*/
         //cudaDeviceSynchronize();
         cudaFree(shared_sum);
         cudaFree(shared_state);

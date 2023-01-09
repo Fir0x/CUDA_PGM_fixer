@@ -2,6 +2,7 @@
 #include <thrust/scan.h>
 #include <thrust/execution_policy.h>
 
+#ifdef REF_GPU_FIX
 void fix_image_gpu(Image &to_fix)
 {
     // Send image to GPU
@@ -11,11 +12,17 @@ void fix_image_gpu(Image &to_fix)
     Core::step_1(d_fix);
     Core::step_2(d_fix, image_size);
     Core::step_3(d_fix, image_size);
-
-    // Get data back to CPU
-    thrust::copy(d_fix.begin(), d_fix.end(), to_fix.buffer.begin());
+    to_fix.gpu_values = d_fix;
 }
 
+void Core::fix_image_gpu_copy(Image &to_fix)
+{
+    // Get data back to CPU
+    thrust::device_vector<int> values = to_fix.gpu_values;
+    thrust::copy(values.begin(), values.end(), to_fix.buffer.begin());
+}
+
+#elif defined GPU_FIX
 void fix_image_gpu_custom(Image &to_fix)
 {
     // Send image to GPU
@@ -23,11 +30,10 @@ void fix_image_gpu_custom(Image &to_fix)
     int *image_data;
     size_t length_pitch;
 
-    // cudaError_t err = cudaMallocPitch(&image_data, &length_pitch, sizeof(int) * to_fix.width, to_fix.height);
     cudaError_t err = cudaMalloc(&image_data, sizeof(int) * to_fix.buffer.size());
     if (err != 0)
         exit(err);
-    // cudaMemcpy2D(image_data, length_pitch, to_fix.buffer.data(), 0, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyHostToDevice);
+
     err = cudaMemcpy(image_data, to_fix.buffer.data(), sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice);
     if (err != 0)
         exit(err);
@@ -37,14 +43,24 @@ void fix_image_gpu_custom(Image &to_fix)
     CustomCore::step_1(image_data, imageInfo);
     CustomCore::step_2(image_data, imageInfo);
     CustomCore::step_3(image_data, imageInfo);
+    //to_fix.gpu_values = image_data;
+    //printf("Res 3: %d\n", CustomCore::reduce(to_fix));
+    
+    to_fix.gpu_values = image_data;
+}
 
-    std::cout << "End of steps " << std::endl;
-
-    // Get data back to CPU
-    // cudaMemcpy2D(to_fix.buffer.data(), 0, image_data, length_pitch, to_fix.width * sizeof(int), to_fix.height, cudaMemcpyDeviceToHost);
-    err = cudaMemcpy(&to_fix.buffer[0], image_data, sizeof(int) * image_size, cudaMemcpyDeviceToHost);
-    if (err != 0) {
+// Get data back to CPU
+void CustomCore::fix_image_gpu_custom_copy(Image &to_fix)
+{
+    int *values = to_fix.gpu_values;
+    const int image_size = to_fix.width * to_fix.height;
+    cudaError_t err = cudaMemcpy(&to_fix.buffer[0], values, sizeof(int) * image_size, cudaMemcpyDeviceToHost);
+    if (err != 0)
+    {
         std::cout << cudaGetErrorString(err) << std::endl;
         exit(err);
     }
+    cudaFree(values);
 }
+
+#endif

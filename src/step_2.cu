@@ -85,6 +85,7 @@ namespace CustomCore
 
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         map_fix<<<nbBlocks, NB_THREADS>>>(to_fix, size);
+        cudaDeviceSynchronize();
         checkKernelError("map_fix");
         //cudaDeviceSynchronize();
 

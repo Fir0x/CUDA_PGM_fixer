@@ -7,17 +7,21 @@
 #include <vector>
 #include <sstream>
 
+#ifdef REF_GPU_FIX
+#include <thrust/device_vector.h>
+#endif
+
 struct Image
 {
     Image() = default;
 
-    Image(const std::string& filepath, int id = -1)
+    Image(const std::string &filepath, int id = -1)
     {
         to_sort.id = id;
 
         std::ifstream infile(filepath, std::ifstream::binary);
 
-        if (!infile.is_open()) 
+        if (!infile.is_open())
             throw std::runtime_error("Failed to open");
 
         std::string magic;
@@ -31,9 +35,9 @@ struct Image
                 infile.get(c);
             infile.get(c);
         }
-        
+
         infile.seekg(-1, infile.cur);
-        
+
         int max;
         infile >> width >> height >> max;
         if (max != 255 && magic == "P5")
@@ -52,30 +56,33 @@ struct Image
         else if (magic == "P?")
         {
             infile.seekg(1, infile.cur);
-            
+
             std::string line;
             std::getline(infile, line);
 
             std::stringstream lineStream(line);
             std::string s;
 
-            while(std::getline(lineStream, s, ';'))
+            while (std::getline(lineStream, s, ';'))
                 buffer.emplace_back(std::stoi(s));
         }
         else
             throw std::runtime_error("Bad PPM value");
     }
 
-    Image(std::vector<int>&& b, int h, int w): buffer(std::move(b)), height(h), width(w)
+    Image(std::vector<int> &&b, int h, int w) : buffer(std::move(b)), height(h), width(w)
     {
     }
 
-    void write(const std::string& filepath) const
+    void write(const std::string &filepath) const
     {
         std::ofstream outfile(filepath, std::ofstream::binary);
         if (outfile.fail())
             throw std::runtime_error("Failed to open");
-        outfile << "P5" << "\n" << width << " " << height << "\n" << 255 << "\n";
+        outfile << "P5"
+                << "\n"
+                << width << " " << height << "\n"
+                << 255 << "\n";
 
         for (int i = 0; i < height * width; ++i)
         {
@@ -98,4 +105,9 @@ struct Image
         uint64_t total = 0;
         int id = -1;
     } to_sort;
+#ifdef REF_GPU_FIX
+    thrust::device_vector<int> gpu_values;
+#elif defined GPU_FIX
+    int *gpu_values;
+#endif
 };
