@@ -28,15 +28,15 @@ namespace CustomCore
     __global__ void build_predicate2(int *to_fix, int *predicate, int size)
     {
         // WIP TODO
-        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        int id = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
         // Grid stride loop pattern and vectorial access
-        for (int i = id; i < size / 4; i += blockDim.x * gridDim.x)
+        for (int i = id; i < size; i += blockDim.x * gridDim.x * 4)
         {
-            int4 vals = reinterpret_cast<int4 *>(to_fix)[id];
-            predicate[id] = vals.x != -27;
-            predicate[id + 1] = vals.y != -27;
-            predicate[id + 2] = vals.z != -27;
-            predicate[id + 3] = vals.w != -27;
+            int4 vals = reinterpret_cast<int4 *>(to_fix)[i];
+            predicate[i] = vals.x != -27;
+            predicate[i + 1] = vals.y != -27;
+            predicate[i + 2] = vals.z != -27;
+            predicate[i + 3] = vals.w != -27;
         }
 
         int remainder = size % 4;
@@ -45,7 +45,7 @@ namespace CustomCore
             while (remainder)
             {
                 int idx = size - remainder--;
-                predicate[id] = to_fix[id] != -27;
+                predicate[idx] = to_fix[idx] != -27;
             }
         }
     }
@@ -53,9 +53,8 @@ namespace CustomCore
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         // Grid stride loop pattern
-        for (int i = id; i < size; i += blockDim.x * gridDim.x) {
-            predicate[id] = to_fix[id] != -27;
-        }
+        for (int i = id; i < size; i += blockDim.x * gridDim.x)
+            predicate[i] = to_fix[i] != -27;
     }
 
     __global__ void build_predicate0(int *to_fix, int *predicate, int size)
@@ -91,7 +90,7 @@ namespace CustomCore
     // Compact
     void step_1([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
     {
-        //std::cout << "=== Start step 1 custom" << std::endl;
+        // std::cout << "=== Start step 1 custom" << std::endl;
 
         int size = imageInfo.corrupted_size;
         int nbBlocks = std::ceil((float)size / NB_THREADS);
@@ -101,6 +100,7 @@ namespace CustomCore
         // 1 Build the predicate vector
         int *predicate;
         cudaMalloc_custom(&predicate, sizeof(int) * size);
+        //cudaMemset(predicate, 1, sizeof(int) * size);
         std::cout << "Start predicate kernel" << std::endl;
         // build_predicate0<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
         /*int numSMs;
@@ -112,20 +112,29 @@ namespace CustomCore
             exit(err);
         }
         cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, *deviceID);*/
-        build_predicate1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
-        checkKernelError("build_predicate");
-        //cudaDeviceSynchronize();
+        build_predicate0<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
+        //std::cout << "End predicate kernel" << std::endl;
 
-        // thrust::device_ptr<int> pred_copy_tmp;
-        // { // debug
-        //     thrust::device_ptr<int> pred_tmp = thrust::device_pointer_cast(predicate);
-        //     int *pred_copy;
-        //     cudaMalloc_custom(&pred_copy, sizeof(int) * size);
-        //     pred_copy_tmp = thrust::device_pointer_cast(pred_copy);
-        //     thrust::copy(pred_tmp, pred_tmp + size, pred_copy_tmp);
-        //     // check if scan worked
-        //     thrust::exclusive_scan(pred_copy_tmp, pred_copy_tmp + size, pred_copy_tmp, 0);
-        // }
+        checkKernelError("build_predicate");
+        // cudaDeviceSynchronize();
+
+        /*thrust::device_ptr<int> pred_copy_tmp;
+        { // debug
+            thrust::device_ptr<int> pred_tmp = thrust::device_pointer_cast(predicate);
+            int *pred_copy;
+            cudaMalloc_custom(&pred_copy, sizeof(int) * size);
+            pred_copy_tmp = thrust::device_pointer_cast(pred_copy);
+            thrust::copy(pred_tmp, pred_tmp + size, pred_copy_tmp);
+            for (int i = 0; i < size; i++)
+            {
+                if (pred_copy_tmp[i] != 0 && pred_copy_tmp[i] != 1)
+                {
+                    printf("Error in build id: %d\n", i);
+                }
+            }
+            // check if scan worked
+            thrust::exclusive_scan(pred_copy_tmp, pred_copy_tmp + size, pred_copy_tmp, 0);
+        }*/
 
         // 2 Exclusive sum of the predicate
         std::cout << "Start scan" << std::endl;
@@ -167,7 +176,7 @@ namespace CustomCore
         cudaFree(to_fix_cpy);*/
         scatter1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
         checkKernelError("scatter");
-        cudaDeviceSynchronize();
+        //cudaDeviceSynchronize();
 
         /*{ // debug
             thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
@@ -180,7 +189,6 @@ namespace CustomCore
             auto it = std::find(tmp_fix, tmp_fix + size, -27);
             std::cout << "It info after: S " << it - tmp_fix << " E " << tmp_fix + size - it << std::endl;
         }*/
-
 
         cudaFree(predicate);
     }
