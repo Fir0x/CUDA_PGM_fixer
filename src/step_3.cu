@@ -83,14 +83,12 @@ namespace CustomCore
         int min = histo[start_id]; 
 
         // Will iterate on a part of the array
-        // Separe te work on x thread group
+        // Separe the work on x thread group
         for (int i = start_id + 1; i < start_id + work_per_thread; i++)
         {
             int val = histo[i];
-            if (min == 0 || (val != 0 && val < min))
-            {
-                min = val;
-            }
+            int boolean = (min == 0 || (val != 0 && val < min));
+            min = val * boolean + min * !boolean;
         }
         min_non_zeros[threadIdx.x] = min;
 
@@ -98,18 +96,16 @@ namespace CustomCore
         
         min = 0;
         // A thread alone is here to get the final result
-        if (threadIdx.x == 0)
+        if (threadIdx.x != 0)
+            return;
+
+        for (int i = 0; i < NB_THREADS / work_per_thread; i++)
         {
-            for (int i = 0; i < NB_THREADS / work_per_thread; i++)
-            {
-                int val = min_non_zeros[i];
-                if (min == 0 || (val != 0 && val < min))
-                {
-                    min = val;
-                }
-            }
-            *find_first_non_zero = min;
+            int val = min_non_zeros[i];
+            int boolean = (min == 0 || (val != 0 && val < min));
+            min = val * boolean + min * !boolean;
         }
+        *find_first_non_zero = min;
     }
 
     __global__ void histo_equalization(int *to_fix, int *histo, int *first_non_zero, int size)
