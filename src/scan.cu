@@ -333,12 +333,15 @@ namespace CustomCore
     void scan(int *buffer, int size, bool inclusive)
     {
         int nbBlocks = std::ceil((float)size / NB_THREADS);
+        
         int *shared_state;
         cudaMalloc(&shared_state, sizeof(int) * nbBlocks);
         cudaMemset(shared_state, 0, sizeof(int) * nbBlocks);
+
         int *shared_sum;
         cudaMalloc(&shared_sum, sizeof(int) * nbBlocks);
         cudaMemset(shared_sum, 0, sizeof(int) * nbBlocks);
+
         int *block_order;
         cudaMalloc(&block_order, sizeof(int));
         cudaMemset(block_order, 0, sizeof(int));
@@ -350,16 +353,6 @@ namespace CustomCore
                                                     block_order,
                                                     inclusive);
 
-        /*int *shared_sum_p;
-        cudaMalloc(&shared_sum_p, sizeof(int) * nbBlocks);
-        scan_kernel1<int><<<nbBlocks, NB_THREADS>>>(buffer,
-                                                    size,
-                                                    shared_state,
-                                                    shared_sum,
-                                                    shared_sum_p,
-                                                    block_order,
-                                                    inclusive);*/
-        //cudaDeviceSynchronize();
         cudaFree(shared_sum);
         cudaFree(shared_state);
         cudaFree(block_order);

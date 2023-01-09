@@ -54,47 +54,22 @@ namespace CustomCore
         if (id < size)
         {
             int modulo = id % 4;
-            //constexpr int values[4] = { 1, -5, 3, -8 };
             int *values = (int*)alloca(4 * sizeof(int));
             values[0] = 1;
             values[1] = -5;
             values[2] = 3;
             values[3] = -8;
             to_fix[id] += values[modulo];
-
-            // if (to_fix[id] < 0)
-            //     printf("Error neg values during map: %d -> %d\n", before, to_fix[id]);
         }
     }
     // Apply map to fix pixels
-    void step_2([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
+    void step_2(int *to_fix, ImageInfo imageInfo)
     {
-        //std::cout << "=== Start step 2 custom" << std::endl;
         int size = imageInfo.height * imageInfo.width;
-
-        // { // debug
-
-        //     thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
-        //     for (int i = 0; i < 10; i++)
-        //     {
-        //         std::cout << tmp_fix[i] << " ; ";
-        //     }
-        //     std::cout << std::endl;
-        //     std::cout << "Accumulate before: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
-        // }
 
         int nbBlocks = std::ceil((float)size / NB_THREADS);
         map_fix<<<nbBlocks, NB_THREADS>>>(to_fix, size);
-        cudaDeviceSynchronize();
-        checkKernelError("map_fix");
-        //cudaDeviceSynchronize();
 
-        // { // debug
-        //     thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
-        //     std::cout << "Accumulate after: " << thrust::reduce(tmp_fix, tmp_fix + imageInfo.corrupted_size, 0) << std::endl;
-        //     auto it = thrust::find_if(tmp_fix, tmp_fix + size, less_than_0());
-        //     if (it != tmp_fix + size)
-        //         std::cout << "ERROR negative values: " << it - tmp_fix << " Val: " << it[0] << std::endl;
-        // }
+        checkKernelError("map_fix");
     }
 } // namespace CustomCore

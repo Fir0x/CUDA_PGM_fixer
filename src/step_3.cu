@@ -121,9 +121,8 @@ namespace CustomCore
             to_fix[id] = std::roundf(((histo_val - *first_non_zero) / static_cast<float>(size - *first_non_zero)) * 255.0f);
         }
     }
-    void step_3([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
+    void step_3(int *to_fix, ImageInfo imageInfo)
     {
-        //std::cout << "=== Start step 3 custom" << std::endl;
         int size = imageInfo.height * imageInfo.width;
         int nbBlocks = std::ceil((float)size / NB_THREADS);
 
@@ -133,13 +132,8 @@ namespace CustomCore
         cudaMemset(histogram, 0, sizeof(int) * 256);
         
         build_histogram<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, size);
-        checkKernelError("build_histogram");
-        //cudaDeviceSynchronize();
 
-        // { // debug
-        //     thrust::device_ptr<int> tmp_histogram = thrust::device_pointer_cast(histogram);
-        //     std::cout << "Histogram accumulation: " << thrust::reduce(tmp_histogram, tmp_histogram + 256, 0) << std::endl;
-        // }
+        checkKernelError("build_histogram");
 
         // 2. Compute the inclusive sum scan of the histogram
         scan(histogram, 256, true);
@@ -147,25 +141,16 @@ namespace CustomCore
         // 3. Find the first non-zero value in the cumulative histogram
         int *first_non_zero;
         cudaMalloc_custom(&first_non_zero, sizeof(int));
+
         int work_per_thread = 16;
         find_first_non_zero<<<1, 16>>>(histogram, work_per_thread, first_non_zero);
-        checkKernelError("find_first_non_zero");
-        //cudaDeviceSynchronize();
 
-        // { // debug
-        //     thrust::device_ptr<int> tmp_first = thrust::device_pointer_cast(first_non_zero);
-        //     std::cout << "First cdf_min: " << *tmp_first << std::endl;
-        // }
+        checkKernelError("find_first_non_zero");
 
         // 4. Apply the map transformation of the histogram equalization
         histo_equalization<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
-        checkKernelError("histo_equalization");
-        //cudaDeviceSynchronize();
 
-        // { // debug
-        //     thrust::device_ptr<int> tmp_fix = thrust::device_pointer_cast(to_fix);
-        //     std::cout << "Last accumulation: " << thrust::reduce(tmp_fix, tmp_fix + size, 0) << std::endl;
-        // }
+        checkKernelError("histo_equalization");
 
         cudaFree(histogram);
         cudaFree(first_non_zero);
