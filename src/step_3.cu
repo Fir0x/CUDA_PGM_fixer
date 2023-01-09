@@ -113,9 +113,9 @@ namespace CustomCore
         int id = blockIdx.x * blockDim.x + threadIdx.x;
         for (int i  = id; i < size; i += blockDim.x * gridDim.x)
         {
-            int fix_val = to_fix[id];
+            int fix_val = to_fix[i];
             int histo_val = histo[fix_val];
-            to_fix[id] = std::roundf(((histo_val - *first_non_zero) / static_cast<float>(size - *first_non_zero)) * 255.0f);
+            to_fix[i] = std::roundf(((histo_val - *first_non_zero) / static_cast<float>(size - *first_non_zero)) * 255.0f);
         }
     }
     void step_3([[maybe_unused]] int *to_fix, [[maybe_unused]] ImageInfo imageInfo)
@@ -154,7 +154,7 @@ namespace CustomCore
         // }
 
         // 4. Apply the map transformation of the histogram equalization
-        histo_equalization<<<nbBlocks / 2, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
+        histo_equalization<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
         checkKernelError("histo_equalization");
         //cudaDeviceSynchronize();
 
