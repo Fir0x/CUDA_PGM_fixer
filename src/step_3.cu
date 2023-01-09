@@ -66,20 +66,16 @@ namespace CustomCore
 {
     __global__ void build_histogram(int *to_fix, int *histo, int size)
     {
-        constexpr int histogramSize = 256;
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
         __shared__ int subHistogram[256];
 
-        for (int i = threadIdx.x; i < histogramSize; i += blockDim.x * gridDim.x)
-            subHistogram[i] = 0;
-        __syncthreads();
+        subHistogram[threadIdx.x] = 0;
 
         for (int i = tid; i < size; i += blockDim.x * gridDim.x)
-            atomicAdd(&subHistogram[to_fix[i]], 1);
+            atomicAdd(subHistogram + to_fix[i], 1);
         __syncthreads();
 
-        for (int i = threadIdx.x; i < histogramSize; i += blockDim.x * gridDim.x)
-            atomicAdd(&histo[i % histogramSize], subHistogram[i]);
+        atomicAdd(histo + threadIdx.x, subHistogram[threadIdx.x]);
     }
 
     __global__ void find_first_non_zero(int *histo, int work_per_thread, int *find_first_non_zero)
@@ -140,7 +136,7 @@ namespace CustomCore
         cudaMalloc_custom(&histogram, sizeof(int) * 256);
         cudaMemset(histogram, 0, sizeof(int) * 256);
         
-        build_histogram<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, size);
+        build_histogram<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, size);
         checkKernelError("build_histogram");
         //cudaDeviceSynchronize();
 
