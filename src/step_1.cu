@@ -28,11 +28,17 @@ namespace CustomCore
     __global__ void build_predicate2(int *to_fix, int *predicate, int size)
     {
         // WIP TODO
-        int id = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+        int id = (blockIdx.x * blockDim.x + threadIdx.x);
+
         // Grid stride loop pattern and vectorial access
-        for (int i = id; i < size; i += blockDim.x * gridDim.x * 4)
+        for (int i = id; i < size / 4; i += blockDim.x * gridDim.x)
         {
             int4 vals = reinterpret_cast<int4 *>(to_fix)[i];
+            /*vals.x = vals.x != -27;
+            vals.y = vals.y != -27;
+            vals.z = vals.z != -27;
+            vals.w = vals.w != -27;
+            reinterpret_cast<int4*>(predicate)[i] = vals;*/
             predicate[i] = vals.x != -27;
             predicate[i + 1] = vals.y != -27;
             predicate[i + 2] = vals.z != -27;
@@ -112,7 +118,7 @@ namespace CustomCore
             exit(err);
         }
         cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, *deviceID);*/
-        build_predicate0<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
+        build_predicate1<<<nbBlocks / 4, NB_THREADS>>>(to_fix, predicate, size);
         //std::cout << "End predicate kernel" << std::endl;
 
         checkKernelError("build_predicate");

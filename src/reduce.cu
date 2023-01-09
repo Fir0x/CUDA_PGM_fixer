@@ -11,10 +11,10 @@ namespace CustomCore
         return val;
     }
 
-    __global__ void reduce_kernel(int *data, int size, int *res)
+    __global__ void reduce_kernel0(int *data, int size, int *res)
     {
         uint tid = blockDim.x * blockIdx.x + threadIdx.x;
-        if (tid + 32 < size)
+        if (tid < size)
         {
             int sum = 0;
 
@@ -23,18 +23,42 @@ namespace CustomCore
             if (tid % 32 == 0)
                 atomicAdd(&res[0], sum);
         }
-        else if (tid < size) 
+    }
+
+    __global__ void reduce_kernel1(int *data, int size, int *res)
+    {
+        uint tid = blockDim.x * blockIdx.x + threadIdx.x;
+        if (tid < size)
         {
-             atomicAdd(&res[0], data[tid]);
+            int sum = 0;
+            for (int i = tid; i < size; i+= gridDim.x * blockDim.x) {
+                sum += data[i];
+            }
+
+            sum = warp_reduce(sum);
+
+            if (tid % 32 == 0)
+                atomicAdd(&res[0], sum);
         }
     }
 
-    __global__ void reduce_kernel0(int *data, int size, int *res)
+    __global__ void reduce_kernel2(int *data, int size, int *res)
     {
-        // Really naive reduce, need improvements
-        uint id = blockDim.x * blockIdx.x + threadIdx.x;
-        if (id < size)
-            atomicAdd(&res[0], data[id]);
+        uint tid = (blockDim.x * blockIdx.x + threadIdx.x) * 4 ;
+        if (tid < size)
+        {
+            int sum = 0;
+            for (int i = tid; i < size / 4; i+= gridDim.x * blockDim.x) {
+                sum += data[i] + data[i + 1] + data[i + 2] + data[i + 3];
+                //int4 val = reinterpret_cast<int4*>(data)[i];
+                //sum += val.x + val.y + val.z + val.w;
+            }
+
+            sum = warp_reduce(sum);
+
+            if (tid % 32 == 0)
+                atomicAdd(&res[0], sum);
+        }
     }
 
     int reduce(Image &to_fix)
@@ -46,7 +70,7 @@ namespace CustomCore
         int size = to_fix.height * to_fix.width;
         int nbBlocks = std::ceil((float)size / NB_THREADS);
 
-        reduce_kernel0<<<nbBlocks, NB_THREADS>>>(to_fix.gpu_values, size, total);
+        reduce_kernel1<<<nbBlocks / 4, NB_THREADS>>>(to_fix.gpu_values, size, total);
         int res = 0;        
         cudaMemcpy(&res, total, sizeof(int), cudaMemcpyDeviceToHost);
         cudaFree(total);
