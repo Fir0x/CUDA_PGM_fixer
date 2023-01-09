@@ -13,7 +13,7 @@
 #include <filesystem>
 #include <numeric>
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
+int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
 {
     // -- Pipeline initialization
 
@@ -23,7 +23,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     using recursive_directory_iterator = std::filesystem::recursive_directory_iterator;
     std::vector<std::string> filepaths;
-    for (const auto& dir_entry : recursive_directory_iterator("images"))
+    for (const auto &dir_entry : recursive_directory_iterator("images"))
         filepaths.emplace_back(dir_entry.path());
 
     // - Init pipeline object
@@ -40,7 +40,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     std::cout << "Done, starting compute" << std::endl;
 
     nb_images = 1;
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {
         // TODO : make it GPU compatible (aka faster)
@@ -62,19 +62,27 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     std::cout << "Done with compute, starting stats" << std::endl;
 
-    // -- All images are now fixed : compute stats (total then sort)
+// -- All images are now fixed : compute stats (total then sort)
 
-    // - First compute the total of each image
+// - First compute the total of each image
 
-    // TODO : make it GPU compatible (aka faster)
-    // You can use multiple CPU threads for your GPU version using openmp or not
-    // Up to you :)
-    #pragma omp parallel for
+// TODO : make it GPU compatible (aka faster)
+// You can use multiple CPU threads for your GPU version using openmp or not
+// Up to you :)
+#pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {
-        auto& image = images[i];
+        auto &image = images[i];
         const int image_size = image.width * image.height;
+#ifdef REF_GPU_FIX
+        image.to_sort.total = thrust::reduce(image.gpu_values.begin(), image.gpu_values.begin() + image_size, 0);
+        Core::fix_image_gpu_copy(image);
+#elif defined GPU_FIX
+        image.to_sort.total = CustomCore::reduce(image);
+        CustomCore::fix_image_gpu_custom_copy(image);
+#else
         image.to_sort.total = std::reduce(image.buffer.cbegin(), image.buffer.cbegin() + image_size, 0);
+#endif
     }
 
     // - All totals are known, sort images accordingly (OPTIONAL)
@@ -85,15 +93,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // But just like the CPU version, moving the actual images while sorting will be too slow
     using ToSort = Image::ToSort;
     std::vector<ToSort> to_sort(nb_images);
-    std::generate(to_sort.begin(), to_sort.end(), [n = 0, images] () mutable
-    {
-        return images[n++].to_sort;
-    });
+    std::generate(to_sort.begin(), to_sort.end(), [n = 0, images]() mutable
+                  { return images[n++].to_sort; });
 
     // TODO OPTIONAL : make it GPU compatible (aka faster)
-    std::sort(to_sort.begin(), to_sort.end(), [](ToSort a, ToSort b) {
-        return a.total < b.total;
-    });
+    std::sort(to_sort.begin(), to_sort.end(), [](ToSort a, ToSort b)
+              { return a.total < b.total; });
 
     // TODO : Test here that you have the same results
     // You can compare visually and should compare image vectors values and "total" values
