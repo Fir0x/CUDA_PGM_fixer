@@ -22,7 +22,6 @@ namespace CustomCore
     {
         int width;
         int height;
-        size_t device_pitch;
         size_t corrupted_size;
     };
 
@@ -30,8 +29,9 @@ namespace CustomCore
     void step_1(int* to_fix, ImageInfo imageInfo);
     void step_2(int* to_fix, ImageInfo imageInfo);
     void step_3(int* to_fix, ImageInfo imageInfo);
-    void scan(int *buffer, int size, bool inclusive = false);
-    void cudaMalloc_custom(int** ptr, size_t size);
+    void scan(int *buffer, int size);
+    void scan_inclusive(int* data);
+    void cudaMalloc_custom(int** ptr, size_t size, int line, const char *file);
     void checkKernelError(std::string name);
     #ifdef GPU_FIX
     int reduce(Image &to_fix);

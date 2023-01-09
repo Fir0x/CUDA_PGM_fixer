@@ -39,7 +39,6 @@ namespace CustomCore
 
     __device__ void reduce2(int *buffer_shared, int *blocks_sum, int block_id)
     {
-        int sum = 0;
         uint tid = threadIdx.x;
 
         __shared__ int sdata[NB_THREADS];
@@ -62,7 +61,6 @@ namespace CustomCore
 
     __device__ void reduce1(int *buffer_shared, int *blocks_sum, int block_id)
     {
-        int sum = 0;
         uint tid = threadIdx.x;
 
         __shared__ int sdata[NB_THREADS];
@@ -114,7 +112,6 @@ namespace CustomCore
 
     __device__ void sklansky_scan1(int *buffer_shared, int local_index)
     {
-        int val;
         int previous_pow = 1;
         int offset = 0;
 #pragma unroll
@@ -140,7 +137,6 @@ namespace CustomCore
 
     __device__ void sklansky_scan0(int *buffer_shared, int local_index)
     {
-        int val;
         int previous_pow = -1;
 #pragma unroll
         for (int pow = 2; pow <= 256; pow <<= 1)
@@ -190,7 +186,7 @@ namespace CustomCore
 
     template <typename T>
     __global__ void scan_kernel1(
-        T *buffer, int size, int *shared_state, int *blocks_sum_a, int *blocks_sum_p, int *block_order, bool inclusive)
+        T *buffer, int size, int *shared_state, int *blocks_sum_a, int *blocks_sum_p, int *block_order)
     {
         __shared__ int block_manual_id;
         __shared__ int buffer_shared[NB_THREADS];
@@ -236,20 +232,14 @@ namespace CustomCore
             __syncthreads();
 
             // --- 3. Scan - Final scan on the block itself
-            if (inclusive)
-                sklansky_scan0(buffer_shared, local_index);
+            int start_val = buffer_shared[threadIdx.x];
+            __syncthreads();
+            sklansky_scan0(buffer_shared, local_index);
+            if (threadIdx.x == 0)
+                buffer_shared[local_index] -= start_val - total_added;
             else
-            {
-                int start_val = buffer_shared[threadIdx.x];
-                __syncthreads();
-                sklansky_scan0(buffer_shared, local_index);
-                // kogge_stone_scan0(buffer_shared, local_index);
-                if (threadIdx.x == 0)
-                    buffer_shared[local_index] -= start_val - total_added;
-                else
-                    buffer_shared[local_index] -= start_val;
-                __syncthreads();
-            }
+                buffer_shared[local_index] -= start_val;
+            __syncthreads();
 
             __syncthreads();
             buffer[global_index] = buffer_shared[local_index];
@@ -259,7 +249,7 @@ namespace CustomCore
 
     template <typename T>
     __global__ void scan_kernel0(
-        T *buffer, int size, int *shared_state, int *blocks_sum, int *block_order, bool inclusive)
+        T *buffer, int size, int *shared_state, int *blocks_sum, int *block_order)
     {
         __shared__ int block_manual_id;
         __shared__ int buffer_shared[NB_THREADS];
@@ -309,20 +299,15 @@ namespace CustomCore
             __syncthreads();
 
             // --- 3. Scan - Final scan on the block itself
-            if (inclusive)
-                sklansky_scan1(buffer_shared, local_index);
+            int start_val = buffer_shared[threadIdx.x];
+            __syncthreads();
+            sklansky_scan1(buffer_shared, local_index);
+            // kogge_stone_scan0(buffer_shared, local_index);
+            if (threadIdx.x == 0)
+                buffer_shared[local_index] -= start_val - total_added;
             else
-            {
-                int start_val = buffer_shared[threadIdx.x];
-                __syncthreads();
-                sklansky_scan1(buffer_shared, local_index);
-                // kogge_stone_scan0(buffer_shared, local_index);
-                if (threadIdx.x == 0)
-                    buffer_shared[local_index] -= start_val - total_added;
-                else
-                    buffer_shared[local_index] -= start_val;
-                __syncthreads();
-            }
+                buffer_shared[local_index] -= start_val;
+            __syncthreads();
 
             __syncthreads();
             buffer[global_index] = buffer_shared[local_index];
@@ -330,31 +315,55 @@ namespace CustomCore
         }
     }
 
-    void scan(int *buffer, int size, bool inclusive)
+    void scan(int *buffer, int size)
     {
         int nbBlocks = std::ceil((float)size / NB_THREADS);
-        
+
         int *shared_state;
-        cudaMalloc(&shared_state, sizeof(int) * nbBlocks);
+        cudaMalloc_custom(&shared_state, sizeof(int) * nbBlocks, __LINE__, __FILE__);
         cudaMemset(shared_state, 0, sizeof(int) * nbBlocks);
 
         int *shared_sum;
-        cudaMalloc(&shared_sum, sizeof(int) * nbBlocks);
+        cudaMalloc_custom(&shared_sum, sizeof(int) * nbBlocks, __LINE__, __FILE__);
         cudaMemset(shared_sum, 0, sizeof(int) * nbBlocks);
 
         int *block_order;
-        cudaMalloc(&block_order, sizeof(int));
+        cudaMalloc_custom(&block_order, sizeof(int), __LINE__, __FILE__);
         cudaMemset(block_order, 0, sizeof(int));
 
         scan_kernel0<int><<<nbBlocks, NB_THREADS>>>(buffer,
                                                     size,
                                                     shared_state,
                                                     shared_sum,
-                                                    block_order,
-                                                    inclusive);
+                                                    block_order);
 
         cudaFree(shared_sum);
         cudaFree(shared_state);
         cudaFree(block_order);
+    }
+
+    __global__ void sklansky_scan_kernel(int *data)
+    {
+        int previous_pow = -1;
+#pragma unroll
+        for (int pow = 2; pow <= 256; pow <<= 1)
+        {
+            if ((threadIdx.x + previous_pow + 1) % pow == 0)
+            {
+                int val = data[threadIdx.x];
+#pragma unroll
+                for (int i = 1; i <= pow >> 1; i++)
+                {
+                    data[threadIdx.x + i] += val;
+                }
+            }
+            __syncthreads();
+            previous_pow = pow;
+        }
+    }
+
+    void scan_inclusive(int *data)
+    {
+        sklansky_scan_kernel<<<1, 256>>>(data);
     }
 }

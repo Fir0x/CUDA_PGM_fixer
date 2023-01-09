@@ -2,12 +2,12 @@
 
 namespace CustomCore
 {
-    void cudaMalloc_custom(int **ptr, size_t size)
+    void cudaMalloc_custom(int **ptr, size_t size, int line,const char* file)
     {
         cudaError_t err = cudaMalloc(ptr, size);
         if (err != 0)
         {
-            std::cout << "Malloc ERROR: " << cudaGetErrorString(err) << std::endl;
+            std::cout << "Malloc ERROR: " << cudaGetErrorString(err) << " at " << file << ":" << line << std::endl;
             exit(err);
         }
     }

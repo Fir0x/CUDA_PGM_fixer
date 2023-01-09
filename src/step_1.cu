@@ -27,17 +27,17 @@ namespace CustomCore
 {
     __global__ void build_predicate2(int *to_fix, int *predicate, int size)
     {
-        // WIP TODO
         int id = (blockIdx.x * blockDim.x + threadIdx.x);
 
         // Grid stride loop pattern and vectorial access
         for (int i = id; i < size / 4; i += blockDim.x * gridDim.x)
         {
             int4 vals = reinterpret_cast<int4 *>(to_fix)[i];
-            predicate[i] = vals.x != -27;
-            predicate[i + 1] = vals.y != -27;
-            predicate[i + 2] = vals.z != -27;
-            predicate[i + 3] = vals.w != -27;
+            vals.x = vals.x != -27;
+            vals.y = vals.y != -27;
+            vals.z = vals.z != -27;
+            vals.w = vals.w != -27;
+            reinterpret_cast<int4*>(predicate)[i] = vals;
         }
 
         int remainder = size % 4;
@@ -71,9 +71,10 @@ namespace CustomCore
         if (id < size)
         {
             int val = to_fix[id];
+            int i = predicate[id];
             __syncthreads();
-            if (val != -27)
-                to_fix[predicate[id]] = val;
+            if (val != -27 && i < size)
+                to_fix[i] = val;
         }
     }
 
@@ -96,17 +97,15 @@ namespace CustomCore
 
         // 1 Build the predicate vector
         int *predicate;
-        cudaMalloc_custom(&predicate, sizeof(int) * size);
+        cudaMalloc_custom(&predicate, sizeof(int) * size, __LINE__, __FILE__);
         build_predicate1<<<nbBlocks / 4, NB_THREADS>>>(to_fix, predicate, size);
 
         checkKernelError("build_predicate");
 
         // 2 Exclusive sum of the predicate
-        std::cout << "Start scan" << std::endl;
-        scan(predicate, size, false);
+        scan(predicate, size);
 
         // 3 Scatter to the corresponding addresses
-        const int image_size = imageInfo.width * imageInfo.height;
         scatter1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
 
         checkKernelError("scatter");

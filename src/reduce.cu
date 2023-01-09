@@ -64,7 +64,7 @@ namespace CustomCore
     int reduce(Image &to_fix)
     {
         int *total;
-        cudaMalloc_custom(&total, sizeof(int));
+        cudaMalloc_custom(&total, sizeof(int), __LINE__, __FILE__);
         cudaMemset(total, 0, sizeof(int));
 
         int size = to_fix.height * to_fix.width;

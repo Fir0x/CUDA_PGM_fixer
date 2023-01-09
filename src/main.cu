@@ -39,10 +39,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
 
     std::cout << "Done, starting compute" << std::endl;
 
-    nb_images = 1;
-#pragma omp parallel for
+//#pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {
+        std::cout << "Image " << i << "\n";
         // TODO : make it GPU compatible (aka faster)
         // You will need to copy images one by one on the GPU
         // You can store the images the way you want on the GPU

@@ -73,6 +73,7 @@ namespace CustomCore
 
         for (int i = tid; i < size; i += blockDim.x * gridDim.x)
             atomicAdd(subHistogram + to_fix[i], 1);
+            
         __syncthreads();
 
         atomicAdd(histo + threadIdx.x, subHistogram[threadIdx.x]);
@@ -128,19 +129,20 @@ namespace CustomCore
 
         // 1. Histogram
         int *histogram;
-        cudaMalloc_custom(&histogram, sizeof(int) * 256);
+        cudaMalloc_custom(&histogram, sizeof(int) * 256, __LINE__, __FILE__);
         cudaMemset(histogram, 0, sizeof(int) * 256);
         
         build_histogram<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, size);
-
         checkKernelError("build_histogram");
 
         // 2. Compute the inclusive sum scan of the histogram
-        scan(histogram, 256, true);
+        scan_inclusive(histogram);
+        //scan(histogram, 256, true);
+        checkKernelError("scan2");
 
         // 3. Find the first non-zero value in the cumulative histogram
         int *first_non_zero;
-        cudaMalloc_custom(&first_non_zero, sizeof(int));
+        cudaMalloc_custom(&first_non_zero, sizeof(int), __LINE__, __FILE__);
 
         int work_per_thread = 16;
         find_first_non_zero<<<1, 16>>>(histogram, work_per_thread, first_non_zero);
@@ -152,7 +154,9 @@ namespace CustomCore
 
         checkKernelError("histo_equalization");
 
-        cudaFree(histogram);
-        cudaFree(first_non_zero);
+        //cudaFree(histogram);
+        checkKernelError("Free final - 1");
+        //cudaFree(first_non_zero);
+        checkKernelError("Free final");
     }
 } // namespace CustomCore

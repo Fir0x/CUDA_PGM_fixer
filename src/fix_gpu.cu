@@ -26,27 +26,21 @@ void Core::fix_image_gpu_copy(Image &to_fix)
 void fix_image_gpu_custom(Image &to_fix)
 {
     // Send image to GPU
-    const int image_size = to_fix.width * to_fix.height;
     int *image_data;
-    size_t length_pitch;
 
-    cudaError_t err = cudaMalloc(&image_data, sizeof(int) * to_fix.buffer.size());
+    CustomCore::cudaMalloc_custom(&image_data, sizeof(int) * to_fix.buffer.size(), __LINE__, __FILE__);
+    cudaError_t err = cudaMemcpy(image_data, to_fix.buffer.data(), sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice);
     if (err != 0)
         exit(err);
 
-    err = cudaMemcpy(image_data, to_fix.buffer.data(), sizeof(int) * to_fix.buffer.size(), cudaMemcpyHostToDevice);
-    if (err != 0)
-        exit(err);
-
-    CustomCore::ImageInfo imageInfo = {to_fix.width, to_fix.height, length_pitch, to_fix.buffer.size()};
+    CustomCore::ImageInfo imageInfo = {to_fix.width, to_fix.height, to_fix.buffer.size()};
 
     CustomCore::step_1(image_data, imageInfo);
     CustomCore::step_2(image_data, imageInfo);
     CustomCore::step_3(image_data, imageInfo);
-    //to_fix.gpu_values = image_data;
-    //printf("Res 3: %d\n", CustomCore::reduce(to_fix));
     
     to_fix.gpu_values = image_data;
+    CustomCore::checkKernelError("End custom");
 }
 
 // Get data back to CPU
