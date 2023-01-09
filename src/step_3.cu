@@ -111,7 +111,7 @@ namespace CustomCore
     __global__ void histo_equalization(int *to_fix, int *histo, int *first_non_zero, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
-        if (id < size)
+        for (int i  = id; i < size; i += blockDim.x * gridDim.x)
         {
             int fix_val = to_fix[id];
             int histo_val = histo[fix_val];
@@ -154,7 +154,7 @@ namespace CustomCore
         // }
 
         // 4. Apply the map transformation of the histogram equalization
-        histo_equalization<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
+        histo_equalization<<<nbBlocks / 2, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
         checkKernelError("histo_equalization");
         //cudaDeviceSynchronize();
 
