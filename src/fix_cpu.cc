@@ -22,38 +22,14 @@ void fix_image_cpu(Image& to_fix)
             predicate[i] = 1;
 
     // Compute the exclusive sum of the predicate
-
-    for (int i = 0; i < 20; i ++) {
-        std::cout << predicate[i] << " ; ";
-    }
-    std::cout << std::endl;
     std::exclusive_scan(predicate.begin(), predicate.end(), predicate.begin(), 0);
     
-    for (int i = 0; i < 20; i ++) {
-        std::cout << predicate[i] << " ; ";
-    }
-    std::cout << std::endl;
     // Scatter to the corresponding addresses
-    for (int i = 0; i < 20; i ++) {
-        std::cout << to_fix.buffer[i] << " ; ";
-    }
-    std::cout << std::endl;
-    auto it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
-    std::cout << "It info before: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
-
     for (std::size_t i = 0; i < predicate.size(); ++i)
         if (to_fix.buffer[i] != garbage_val)
             to_fix.buffer[predicate[i]] = to_fix.buffer[i];
 
-    it = std::find(to_fix.buffer.begin(), to_fix.buffer.end(), -27);
-    std::cout << "It info after: S " << it - to_fix.buffer.begin() << " E " << to_fix.buffer.end() - it << std::endl;
-
     // #2 Apply map to fix pixels
-    for (int i = 0; i < 20; i ++) {
-        std::cout << to_fix.buffer[i] << " ; ";
-    }
-    std::cout << std::endl;
-    std::cout << "Accumulate before: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
     for (int i = 0; i < image_size; ++i)
     {
         if (i % 4 == 0)
@@ -65,38 +41,27 @@ void fix_image_cpu(Image& to_fix)
         else if (i % 4 == 3)
             to_fix.buffer[i] -= 8;
     }
-    std::cout << "Accumulate after: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
+
 
     // #3 Histogram equalization
-
     // Histogram
-
     std::array<int, 256> histo;
     histo.fill(0);
     for (int i = 0; i < image_size; ++i)
         ++histo[to_fix.buffer[i]];
 
-    std::cout << "Histogram accumulation: " << std::accumulate(histo.begin(), histo.end(), 0) << std::endl;
-
     // Compute the inclusive sum scan of the histogram
-
     std::inclusive_scan(histo.begin(), histo.end(), histo.begin());
 
     // Find the first non-zero value in the cumulative histogram
-
     auto first_none_zero = std::find_if(histo.begin(), histo.end(), [](auto v) { return v != 0; });
-
     const int cdf_min = *first_none_zero;
-    std::cout << "First cdf_min: " << cdf_min << std::endl;
 
     // Apply the map transformation of the histogram equalization
-
     std::transform(to_fix.buffer.data(), to_fix.buffer.data() + image_size, to_fix.buffer.data(),
         [image_size, cdf_min, &histo](int pixel)
             {
                 return std::roundf(((histo[pixel] - cdf_min) / static_cast<float>(image_size - cdf_min)) * 255.0f);
             }
     );
-
-    std::cout << "Last accumulation: " << std::accumulate(to_fix.buffer.begin(), to_fix.buffer.end(), 0) << std::endl;
 }

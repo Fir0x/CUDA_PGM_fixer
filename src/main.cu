@@ -39,10 +39,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
 
     std::cout << "Done, starting compute" << std::endl;
 
-//#pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < nb_images; ++i)
     {
-        std::cout << "Image " << i << "\n";
         // TODO : make it GPU compatible (aka faster)
         // You will need to copy images one by one on the GPU
         // You can store the images the way you want on the GPU
@@ -73,14 +72,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
     for (int i = 0; i < nb_images; ++i)
     {
         auto &image = images[i];
-        const int image_size = image.width * image.height;
 #ifdef REF_GPU_FIX
+        const int image_size = image.width * image.height;
         image.to_sort.total = thrust::reduce(image.gpu_values.begin(), image.gpu_values.begin() + image_size, 0);
         Core::fix_image_gpu_copy(image);
 #elif defined GPU_FIX
         image.to_sort.total = CustomCore::reduce(image);
         CustomCore::fix_image_gpu_custom_copy(image);
 #else
+        const int image_size = image.width * image.height;
         image.to_sort.total = std::reduce(image.buffer.cbegin(), image.buffer.cbegin() + image_size, 0);
 #endif
     }

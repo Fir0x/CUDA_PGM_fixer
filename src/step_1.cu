@@ -99,7 +99,6 @@ namespace CustomCore
         int *predicate;
         cudaMalloc_custom(&predicate, sizeof(int) * size, __LINE__, __FILE__);
         build_predicate1<<<nbBlocks / 4, NB_THREADS>>>(to_fix, predicate, size);
-
         checkKernelError("build_predicate");
 
         // 2 Exclusive sum of the predicate
@@ -107,7 +106,6 @@ namespace CustomCore
 
         // 3 Scatter to the corresponding addresses
         scatter1<<<nbBlocks, NB_THREADS>>>(to_fix, predicate, size);
-
         checkKernelError("scatter");
 
         cudaFree(predicate);

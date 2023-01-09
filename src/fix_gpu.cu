@@ -40,7 +40,6 @@ void fix_image_gpu_custom(Image &to_fix)
     CustomCore::step_3(image_data, imageInfo);
     
     to_fix.gpu_values = image_data;
-    CustomCore::checkKernelError("End custom");
 }
 
 // Get data back to CPU

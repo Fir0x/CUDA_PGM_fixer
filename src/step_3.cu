@@ -67,24 +67,33 @@ namespace CustomCore
     __global__ void build_histogram(int *to_fix, int *histo, int size)
     {
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
+        if (tid < size)
+            atomicAdd(&histo[to_fix[tid]], 1);
+    }
+
+    __global__ void build_histogram1(int *to_fix, int *histo, int size)
+    {
+        int tid = blockDim.x * blockIdx.x + threadIdx.x;
         __shared__ int subHistogram[256];
 
         subHistogram[threadIdx.x] = 0;
 
-        for (int i = tid; i < size; i += blockDim.x * gridDim.x)
-            atomicAdd(subHistogram + to_fix[i], 1);
-            
         __syncthreads();
 
-        atomicAdd(histo + threadIdx.x, subHistogram[threadIdx.x]);
+        for (int i = tid; i < size; i += blockDim.x * gridDim.x)
+            atomicAdd(&subHistogram[to_fix[i]], 1);
+
+        __syncthreads();
+
+        atomicAdd(&histo[threadIdx.x], subHistogram[threadIdx.x]);
     }
 
     __global__ void find_first_non_zero(int *histo, int work_per_thread, int *find_first_non_zero)
     {
         __shared__ int min_non_zeros[16];
-        
+
         int start_id = threadIdx.x * work_per_thread;
-        int min = histo[start_id]; 
+        int min = histo[start_id];
 
         // Will iterate on a part of the array
         // Separe the work on x thread group
@@ -97,7 +106,7 @@ namespace CustomCore
         min_non_zeros[threadIdx.x] = min;
 
         __syncthreads();
-        
+
         min = 0;
         // A thread alone is here to get the final result
         if (threadIdx.x != 0)
@@ -112,6 +121,17 @@ namespace CustomCore
         *find_first_non_zero = min;
     }
 
+    __global__ void histo_equalization1(int *to_fix, int *histo, int *first_non_zero, int size)
+    {
+        int id = blockIdx.x * blockDim.x + threadIdx.x;
+        for (int i = id; i < size; i += blockDim.x * gridDim.x)
+        {
+            int fix_val = to_fix[i];
+            int histo_val = histo[fix_val];
+            to_fix[i] = std::roundf(((histo_val - *first_non_zero) / static_cast<float>(size - *first_non_zero)) * 255.0f);
+        }
+    }
+
     __global__ void histo_equalization(int *to_fix, int *histo, int *first_non_zero, int size)
     {
         int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -122,6 +142,7 @@ namespace CustomCore
             to_fix[id] = std::roundf(((histo_val - *first_non_zero) / static_cast<float>(size - *first_non_zero)) * 255.0f);
         }
     }
+
     void step_3(int *to_fix, ImageInfo imageInfo)
     {
         int size = imageInfo.height * imageInfo.width;
@@ -131,13 +152,12 @@ namespace CustomCore
         int *histogram;
         cudaMalloc_custom(&histogram, sizeof(int) * 256, __LINE__, __FILE__);
         cudaMemset(histogram, 0, sizeof(int) * 256);
-        
-        build_histogram<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, size);
+
+        build_histogram1<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, size);
         checkKernelError("build_histogram");
 
         // 2. Compute the inclusive sum scan of the histogram
         scan_inclusive(histogram);
-        //scan(histogram, 256, true);
         checkKernelError("scan2");
 
         // 3. Find the first non-zero value in the cumulative histogram
@@ -146,17 +166,13 @@ namespace CustomCore
 
         int work_per_thread = 16;
         find_first_non_zero<<<1, 16>>>(histogram, work_per_thread, first_non_zero);
-
         checkKernelError("find_first_non_zero");
 
         // 4. Apply the map transformation of the histogram equalization
-        histo_equalization<<<nbBlocks, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
-
+        histo_equalization1<<<nbBlocks / 4, NB_THREADS>>>(to_fix, histogram, first_non_zero, size);
         checkKernelError("histo_equalization");
 
-        //cudaFree(histogram);
-        checkKernelError("Free final - 1");
-        //cudaFree(first_non_zero);
-        checkKernelError("Free final");
+        cudaFree(histogram);
+        cudaFree(first_non_zero);
     }
 } // namespace CustomCore
